@@ -496,13 +496,6 @@
 
     <!-- Filters -->
     <div class="flex gap-3 mb-4 flex-wrap items-center">
-      <select id="filterFlag" onchange="currentPage=1; renderResults()" class="px-3 py-2 rounded-lg bg-white dark:bg-d-surface-3 border border-slate-200 dark:border-white/10 text-sm text-slate-900 dark:text-white outline-none cursor-pointer">
-        <option value="all">Tất cả</option>
-        <option value="flagged">Cần chú ý</option>
-        <option value="size">Dung lượng >1MB</option>
-        <option value="dimension">Kích thước >3000px</option>
-        <option value="error">Ảnh lỗi</option>
-      </select>
       <select id="filterFormat" onchange="currentPage=1; renderResults()" class="px-3 py-2 rounded-lg bg-white dark:bg-d-surface-3 border border-slate-200 dark:border-white/10 text-sm text-slate-900 dark:text-white outline-none cursor-pointer">
         <option value="all">Tất cả format</option>
       </select>
@@ -965,6 +958,7 @@ async function loadHistory() {
 // ========== SCAN RESULTS ==========
 let activeCat = 'all';
 let activeSubCat = 'all';
+let activeFlag = 'all';
 
 async function loadResults(sessionId, skipPush) {
   try {
@@ -983,13 +977,13 @@ async function loadResults(sessionId, skipPush) {
     const flagErr = scanResultsData.filter(r => r.error).length;
 
     document.getElementById('resultsSummary').innerHTML = [
-      { n: total, l: 'Tổng ảnh', c: 'text-slate-900 dark:text-white' },
-      { n: flagSize, l: '> 1000 KB', c: 'text-amber-600 dark:text-amber-400' },
-      { n: flagDim, l: '> 3000px', c: 'text-amber-600 dark:text-amber-400' },
-      { n: flagAny, l: 'Cần chú ý', c: 'text-red-600 dark:text-red-400' },
-      { n: flagErr, l: 'Lỗi tải ảnh', c: 'text-rose-600 dark:text-rose-400' },
+      { n: total, l: 'Tổng ảnh', c: 'text-slate-900 dark:text-white', f: 'all' },
+      { n: flagSize, l: '> 1000 KB', c: 'text-amber-600 dark:text-amber-400', f: 'size' },
+      { n: flagDim, l: '> 3000px', c: 'text-amber-600 dark:text-amber-400', f: 'dimension' },
+      { n: flagAny, l: 'Cần chú ý', c: 'text-red-600 dark:text-red-400', f: 'flagged' },
+      { n: flagErr, l: 'Lỗi tải ảnh', c: 'text-rose-600 dark:text-rose-400', f: 'error' },
     ].map(c => `
-      <div class="bg-white dark:bg-d-surface-3 rounded-xl p-5 border border-slate-200 dark:border-white/5 text-center">
+      <div onclick="selectFlag('${c.f}')" data-flag="${c.f}" class="summary-card bg-white dark:bg-d-surface-3 rounded-xl p-5 border-2 text-center cursor-pointer transition hover:shadow-md ${activeFlag === c.f ? 'border-brand dark:border-blue-400 shadow-sm' : 'border-slate-200 dark:border-white/5'}">
         <div class="text-2xl font-heading font-bold ${c.c}">${c.n}</div>
         <div class="text-xs text-slate-500 mt-1">${c.l}</div>
       </div>
@@ -997,6 +991,7 @@ async function loadResults(sessionId, skipPush) {
 
     activeCat = 'all';
     activeSubCat = 'all';
+    activeFlag = 'all';
     buildCatTabs();
     buildFormatFilter();
     renderResults();
@@ -1104,17 +1099,31 @@ function sortResults(key) {
   renderResults();
 }
 
+function selectFlag(flag) {
+  activeFlag = flag;
+  currentPage = 1;
+  // Update card borders
+  document.querySelectorAll('.summary-card').forEach(el => {
+    const isCur = el.dataset.flag === flag;
+    el.classList.toggle('border-brand', isCur);
+    el.classList.toggle('dark:border-blue-400', isCur);
+    el.classList.toggle('shadow-sm', isCur);
+    el.classList.toggle('border-slate-200', !isCur);
+    el.classList.toggle('dark:border-white/5', !isCur);
+  });
+  renderResults();
+}
+
 function renderResults() {
-  const flag = document.getElementById('filterFlag').value;
   const fmt = document.getElementById('filterFormat').value;
 
   filteredRows = scanResultsData.filter(r => {
     if (activeCat !== 'all' && r.category_name !== activeCat) return false;
     if (activeSubCat !== 'all' && r.sub_category !== activeSubCat) return false;
-    if (flag === 'flagged' && !r.flag_size && !r.flag_dimension) return false;
-    if (flag === 'size' && !r.flag_size) return false;
-    if (flag === 'dimension' && !r.flag_dimension) return false;
-    if (flag === 'error' && !r.error) return false;
+    if (activeFlag === 'flagged' && !r.flag_size && !r.flag_dimension) return false;
+    if (activeFlag === 'size' && !r.flag_size) return false;
+    if (activeFlag === 'dimension' && !r.flag_dimension) return false;
+    if (activeFlag === 'error' && !r.error) return false;
     if (fmt !== 'all' && (r.format || '').toUpperCase() !== fmt) return false;
     return true;
   });
