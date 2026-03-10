@@ -36,3 +36,6 @@ playwright-browsers/
 
 # Vercel
 .vercel/
+
+.vercel
+.env*.local
