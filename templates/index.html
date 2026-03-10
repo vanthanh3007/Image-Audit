@@ -383,20 +383,7 @@
               <span class="text-sm text-slate-700 dark:text-slate-300">Hàng ngày lúc:</span>
               <input id="schedTime" type="time" value="02:00" class="px-2 py-1 rounded bg-slate-50 dark:bg-d-surface-2 border border-slate-200 dark:border-white/10 text-sm text-slate-900 dark:text-white outline-none disabled:opacity-40" disabled/>
             </label>
-            <label class="flex items-center gap-3 cursor-pointer">
-              <input type="radio" name="schedMode" value="interval" onchange="toggleSchedFields()" class="accent-brand"/>
-              <span class="text-sm text-slate-700 dark:text-slate-300">Mỗi</span>
-              <select id="schedHours" class="px-2 py-1 rounded bg-slate-50 dark:bg-d-surface-2 border border-slate-200 dark:border-white/10 text-sm text-slate-900 dark:text-white outline-none cursor-pointer disabled:opacity-40" disabled>
-                <option value="1">1</option>
-                <option value="2">2</option>
-                <option value="4">4</option>
-                <option value="6" selected>6</option>
-                <option value="8">8</option>
-                <option value="12">12</option>
-                <option value="24">24</option>
-              </select>
-              <span class="text-sm text-slate-700 dark:text-slate-300">giờ</span>
-            </label>
+            <p class="text-xs text-slate-400 ml-7">Nên đặt giờ khác nhau cho mỗi domain để tránh quá tải server</p>
           </div>
 
           <!-- Crawl settings -->
@@ -1190,7 +1177,6 @@ async function scanFieldsPreview() {
 function toggleSchedFields() {
   const mode = document.querySelector('input[name="schedMode"]:checked').value;
   document.getElementById('schedTime').disabled = mode !== 'daily';
-  document.getElementById('schedHours').disabled = mode !== 'interval';
   document.getElementById('schedCrawlSettings').classList.toggle('hidden', mode === 'off');
 }
 
@@ -1199,21 +1185,19 @@ async function loadSchedule() {
   try {
     const data = await api(`/api/domains/${currentDomainId}/schedule`);
     const sched = data.schedule;
-    if (!sched) {
+    if (!sched || sched.mode === 'interval') {
+      // Treat legacy interval as off
       document.querySelector('input[name="schedMode"][value="off"]').checked = true;
     } else if (sched.mode === 'daily') {
       document.querySelector('input[name="schedMode"][value="daily"]').checked = true;
       document.getElementById('schedTime').value = sched.time || '02:00';
-    } else if (sched.mode === 'interval') {
-      document.querySelector('input[name="schedMode"][value="interval"]').checked = true;
-      document.getElementById('schedHours').value = String(sched.hours || 6);
     }
     if (sched) {
       if (sched.crawl_method) document.getElementById('schedCrawlMethod').value = sched.crawl_method;
       if (sched.max_pages) document.getElementById('schedMaxPages').value = String(sched.max_pages);
     }
     toggleSchedFields();
-    document.getElementById('schedStatus').textContent = sched ? `Đang hoạt động: ${sched.mode === 'daily' ? `hàng ngày lúc ${sched.time}` : `mỗi ${sched.hours}h`}` : '';
+    document.getElementById('schedStatus').textContent = (sched && sched.mode === 'daily') ? `Đang hoạt động: hàng ngày lúc ${sched.time}` : '';
   } catch(e) {}
 }
 
@@ -1228,17 +1212,13 @@ async function saveSchedule() {
       document.getElementById('schedStatus').textContent = 'Đã tắt auto-scan';
     } else {
       const body = {
-        mode,
+        mode: 'daily',
+        time: document.getElementById('schedTime').value,
         crawl_method: document.getElementById('schedCrawlMethod').value,
         max_pages: parseInt(document.getElementById('schedMaxPages').value),
       };
-      if (mode === 'daily') body.time = document.getElementById('schedTime').value;
-      if (mode === 'interval') body.hours = parseInt(document.getElementById('schedHours').value);
-
       await api(`/api/domains/${currentDomainId}/schedule`, { method: 'PUT', body: JSON.stringify(body) });
-      document.getElementById('schedStatus').textContent = mode === 'daily'
-        ? `Đã lưu: hàng ngày lúc ${body.time}`
-        : `Đã lưu: mỗi ${body.hours} giờ`;
+      document.getElementById('schedStatus').textContent = `Đã lưu: hàng ngày lúc ${body.time}`;
     }
     toast('Cấu hình đã lưu');
   } catch(e) {} finally { btn.disabled = false; }

@@ -123,35 +123,31 @@ def update_schedule(domain_id):
     """Save or update auto-scan schedule for a domain.
 
     Body: { "mode": "daily", "time": "02:00", "crawl_method": "auto", "max_pages": 200 }
-    or:   { "mode": "interval", "hours": 6, "crawl_method": "auto", "max_pages": 200 }
+    Only daily mode is supported to prevent server overload from concurrent scans.
     """
     from services.scheduler import add_or_update_job
 
     data = request.get_json()
     mode = data.get("mode")
 
-    if mode not in ("daily", "interval"):
-        return jsonify({"error": "mode must be 'daily' or 'interval'"}), 400
+    if mode != "daily":
+        return jsonify({"error": "Only 'daily' mode is supported"}), 400
+
+    time_str = data.get("time", "02:00")
+    # Validate HH:MM format
+    try:
+        h, m = time_str.split(":")
+        assert 0 <= int(h) <= 23 and 0 <= int(m) <= 59
+    except Exception:
+        return jsonify({"error": "time must be HH:MM format"}), 400
 
     schedule = {
-        "mode": mode,
+        "mode": "daily",
+        "time": time_str,
         "crawl_method": data.get("crawl_method", "auto"),
         "max_pages": int(data.get("max_pages", 200)),
         "max_depth": int(data.get("max_depth", 2)),
     }
-
-    if mode == "daily":
-        time_str = data.get("time", "02:00")
-        # Validate HH:MM format
-        try:
-            h, m = time_str.split(":")
-            assert 0 <= int(h) <= 23 and 0 <= int(m) <= 59
-        except Exception:
-            return jsonify({"error": "time must be HH:MM format"}), 400
-        schedule["time"] = time_str
-    elif mode == "interval":
-        hours = max(1, int(data.get("hours", 6)))
-        schedule["hours"] = hours
 
     # Save to DB
     db.update("domains", {"id": f"eq.{domain_id}"}, {"scan_schedule": json.dumps(schedule)})
