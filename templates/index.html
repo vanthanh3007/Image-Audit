@@ -209,6 +209,23 @@
         </div>
       </div>
 
+      <!-- Schedule buffer minutes -->
+      <div class="bg-white dark:bg-d-surface-3 rounded-xl border border-slate-200 dark:border-white/10 p-5">
+        <div class="flex items-start gap-4">
+          <div class="p-2.5 rounded-lg bg-rose-50 dark:bg-rose-500/10 mt-0.5">
+            <svg class="w-5 h-5 text-rose-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+          </div>
+          <div class="flex-1">
+            <label class="block text-sm font-semibold text-slate-900 dark:text-white mb-1">Khoảng cách tối thiểu giữa các auto-scan (phút)</label>
+            <p class="text-xs text-slate-500 mb-3">Ngăn 2 domain scan cùng lúc. Khi đặt lịch sẽ cảnh báo nếu trùng khoảng này.</p>
+            <div class="flex items-center gap-2">
+              <input id="cfg_schedule_buffer_minutes" type="number" min="0" step="5" class="w-36 px-3 py-2 rounded-lg bg-slate-50 dark:bg-d-surface-4 border border-slate-200 dark:border-white/10 text-slate-900 dark:text-white text-sm outline-none focus:border-brand focus:ring-2 focus:ring-brand/20 transition"/>
+              <span class="text-sm text-slate-400">phút</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <!-- Save button -->
       <div class="flex justify-end pt-2">
         <button onclick="saveSettings()" id="saveSettingsBtn" class="px-6 py-2.5 bg-brand hover:bg-brand-dark text-white text-sm font-semibold rounded-lg transition cursor-pointer shadow-sm hover:shadow inline-flex items-center gap-2">
@@ -370,7 +387,16 @@
     <div id="tab-schedule" class="tab-content hidden">
       <div class="max-w-lg">
         <div class="p-5 bg-white dark:bg-d-surface-3 rounded-xl border border-slate-200 dark:border-white/5">
-          <div class="text-sm font-medium text-slate-900 dark:text-white mb-4">Cấu hình Auto-Scan</div>
+          <div class="flex items-center justify-between mb-4">
+            <div class="text-sm font-medium text-slate-900 dark:text-white">Cấu hình Auto-Scan</div>
+            <button onclick="openScheduleManager()" class="text-xs px-3 py-1.5 bg-slate-100 dark:bg-d-surface-4 hover:bg-brand/10 dark:hover:bg-brand/20 text-slate-600 dark:text-slate-300 hover:text-brand rounded-md transition cursor-pointer inline-flex items-center gap-1.5">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+              Xem tất cả lịch scan
+            </button>
+          </div>
+
+          <!-- Conflict warning -->
+          <div id="schedConflictWarn" class="hidden mb-4 p-3 bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/20 rounded-lg text-xs text-amber-700 dark:text-amber-300"></div>
 
           <!-- Mode selector -->
           <div class="space-y-3 mb-5">
@@ -508,6 +534,26 @@
         <button onclick="goPage(currentPage+1)" id="pgNext" class="px-2.5 py-1.5 text-xs rounded-md bg-slate-100 dark:bg-d-surface-3 text-slate-500 dark:text-slate-400 hover:text-brand dark:hover:text-white transition cursor-pointer disabled:opacity-30 disabled:cursor-default">&rsaquo;</button>
         <button onclick="goPage(totalPages)" id="pgLast" class="px-2.5 py-1.5 text-xs rounded-md bg-slate-100 dark:bg-d-surface-3 text-slate-500 dark:text-slate-400 hover:text-brand dark:hover:text-white transition cursor-pointer disabled:opacity-30 disabled:cursor-default">&raquo;</button>
       </div>
+    </div>
+  </div>
+</div>
+
+<!-- Schedule Manager Modal -->
+<div id="schedModal" class="fixed inset-0 z-[60] hidden">
+  <div class="absolute inset-0 bg-black/50 backdrop-blur-sm" onclick="closeScheduleManager()"></div>
+  <div class="absolute inset-4 md:inset-y-8 md:inset-x-auto md:left-1/2 md:-translate-x-1/2 md:max-w-2xl md:w-full bg-white dark:bg-d-surface-2 rounded-2xl border border-slate-200 dark:border-white/10 shadow-2xl flex flex-col overflow-hidden">
+    <div class="flex items-center justify-between px-6 py-4 border-b border-slate-100 dark:border-white/5">
+      <div>
+        <h3 class="text-lg font-bold text-slate-900 dark:text-white">Quản lý Auto-Scan</h3>
+        <p class="text-xs text-slate-500 mt-0.5">Xem và chỉnh lịch scan tất cả domain</p>
+      </div>
+      <button onclick="closeScheduleManager()" class="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-white/5 text-slate-400 hover:text-slate-600 dark:hover:text-white transition cursor-pointer">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M6 18L18 6M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <div class="flex-1 overflow-y-auto px-6 py-4">
+      <div id="schedModalList" class="space-y-3"></div>
+      <div id="schedModalEmpty" class="text-center text-slate-400 py-12 text-sm hidden">Chưa có domain nào</div>
     </div>
   </div>
 </div>
@@ -1201,10 +1247,11 @@ async function loadSchedule() {
   } catch(e) {}
 }
 
-async function saveSchedule() {
+async function saveSchedule(forceOverride = false) {
   const mode = document.querySelector('input[name="schedMode"]:checked').value;
   const btn = document.getElementById('schedSaveBtn');
   btn.disabled = true;
+  document.getElementById('schedConflictWarn').classList.add('hidden');
 
   try {
     if (mode === 'off') {
@@ -1216,12 +1263,117 @@ async function saveSchedule() {
         time: document.getElementById('schedTime').value,
         crawl_method: document.getElementById('schedCrawlMethod').value,
         max_pages: parseInt(document.getElementById('schedMaxPages').value),
+        force: forceOverride,
       };
-      await api(`/api/domains/${currentDomainId}/schedule`, { method: 'PUT', body: JSON.stringify(body) });
+
+      const res = await fetch(`/api/domains/${currentDomainId}/schedule`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      const json = await res.json();
+
+      if (res.status === 409 && json.error === 'conflict') {
+        // Show conflict warning with force option
+        const warn = document.getElementById('schedConflictWarn');
+        warn.innerHTML = `
+          <div class="flex items-start gap-2">
+            <svg class="w-4 h-4 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+            <div>
+              <div class="font-semibold mb-1">${esc(json.message)}</div>
+              <div class="text-slate-500 dark:text-slate-400 mb-2">Các domain scan cùng khoảng thời gian có thể gây quá tải server.</div>
+              <div class="flex gap-2">
+                <button onclick="saveSchedule(true)" class="px-3 py-1 bg-amber-500 hover:bg-amber-600 text-white text-xs font-semibold rounded-md transition cursor-pointer">Vẫn lưu</button>
+                <button onclick="openScheduleManager()" class="px-3 py-1 bg-slate-200 dark:bg-d-surface-4 hover:bg-slate-300 dark:hover:bg-d-surface-3 text-slate-700 dark:text-slate-300 text-xs rounded-md transition cursor-pointer">Xem lịch các domain</button>
+              </div>
+            </div>
+          </div>`;
+        warn.classList.remove('hidden');
+        btn.disabled = false;
+        return;
+      }
+
+      if (!res.ok) throw new Error(json.error || `HTTP ${res.status}`);
+
       document.getElementById('schedStatus').textContent = `Đã lưu: hàng ngày lúc ${body.time}`;
     }
     toast('Cấu hình đã lưu');
-  } catch(e) {} finally { btn.disabled = false; }
+  } catch(e) { toast(e.message, true); } finally { btn.disabled = false; }
+}
+
+// ========== SCHEDULE MANAGER MODAL ==========
+async function openScheduleManager() {
+  document.getElementById('schedModal').classList.remove('hidden');
+  document.body.style.overflow = 'hidden';
+  await loadScheduleManager();
+}
+
+function closeScheduleManager() {
+  document.getElementById('schedModal').classList.add('hidden');
+  document.body.style.overflow = '';
+}
+
+async function loadScheduleManager() {
+  try {
+    const data = await api('/api/domains/schedules');
+    const list = document.getElementById('schedModalList');
+    const empty = document.getElementById('schedModalEmpty');
+
+    if (!data.length) { list.innerHTML = ''; empty.classList.remove('hidden'); return; }
+    empty.classList.add('hidden');
+
+    // Sort: enabled first, then by time, then disabled
+    data.sort((a, b) => {
+      if (a.enabled !== b.enabled) return a.enabled ? -1 : 1;
+      if (a.time && b.time) return a.time.localeCompare(b.time);
+      return 0;
+    });
+
+    list.innerHTML = data.map(d => `
+      <div class="flex items-center gap-4 p-4 bg-slate-50 dark:bg-d-surface-3 rounded-xl border border-slate-200 dark:border-white/5 ${d.id === currentDomainId ? 'ring-2 ring-brand/30' : ''}">
+        <div class="flex-1 min-w-0">
+          <div class="text-sm font-medium text-slate-900 dark:text-white truncate">${esc(d.name)}</div>
+          <div class="text-xs text-slate-500 truncate">${esc(d.url)}</div>
+        </div>
+        <div class="flex items-center gap-2">
+          <input type="time" id="schedMgr_${d.id}" value="${d.time || '02:00'}"
+            class="px-2 py-1.5 rounded-md bg-white dark:bg-d-surface-4 border border-slate-200 dark:border-white/10 text-sm text-slate-900 dark:text-white outline-none focus:border-brand w-28 ${d.enabled ? '' : 'opacity-40'}"
+            ${d.enabled ? '' : 'disabled'}/>
+          <label class="relative inline-flex items-center cursor-pointer">
+            <input type="checkbox" id="schedMgrOn_${d.id}" ${d.enabled ? 'checked' : ''} onchange="toggleScheduleManagerRow('${d.id}')" class="sr-only peer"/>
+            <div class="w-9 h-5 bg-slate-300 dark:bg-slate-600 peer-checked:bg-brand rounded-full peer-focus:ring-2 peer-focus:ring-brand/20 transition after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition peer-checked:after:translate-x-4"></div>
+          </label>
+          <button onclick="saveScheduleManagerRow('${d.id}')" class="px-3 py-1.5 bg-brand hover:bg-brand-dark text-white text-xs font-semibold rounded-md transition cursor-pointer">Lưu</button>
+        </div>
+      </div>
+    `).join('');
+  } catch(e) {}
+}
+
+function toggleScheduleManagerRow(domainId) {
+  const on = document.getElementById(`schedMgrOn_${domainId}`).checked;
+  const timeInput = document.getElementById(`schedMgr_${domainId}`);
+  timeInput.disabled = !on;
+  timeInput.classList.toggle('opacity-40', !on);
+}
+
+async function saveScheduleManagerRow(domainId) {
+  const on = document.getElementById(`schedMgrOn_${domainId}`).checked;
+  const timeInput = document.getElementById(`schedMgr_${domainId}`);
+
+  try {
+    if (!on) {
+      await api(`/api/domains/${domainId}/schedule`, { method: 'DELETE' });
+      toast('Đã tắt auto-scan');
+    } else {
+      const body = { mode: 'daily', time: timeInput.value, force: true };
+      await api(`/api/domains/${domainId}/schedule`, { method: 'PUT', body: JSON.stringify(body) });
+      toast(`Đã lưu: ${timeInput.value}`);
+    }
+    // Reload if editing current domain
+    if (domainId === currentDomainId) loadSchedule();
+    await loadScheduleManager();
+  } catch(e) {}
 }
 
 // ========== UTILS ==========

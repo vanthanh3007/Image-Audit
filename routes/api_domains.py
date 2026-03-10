@@ -99,6 +99,76 @@ def update_domain_config(domain_id):
 
 # ─── Schedule CRUD ───
 
+def _parse_schedule_field(raw):
+    """Parse scan_schedule which may be JSON string or dict."""
+    if raw is None:
+        return None
+    if isinstance(raw, str):
+        try:
+            return json.loads(raw)
+        except (json.JSONDecodeError, TypeError):
+            return None
+    return raw
+
+
+def _time_to_minutes(time_str):
+    """Convert HH:MM to total minutes since midnight."""
+    h, m = time_str.split(":")
+    return int(h) * 60 + int(m)
+
+
+def _check_time_conflict(domain_id, time_str):
+    """Check if any other domain has a schedule within buffer minutes.
+    Returns list of conflicting domains or empty list."""
+    buffer = get_scan_config().get("schedule_buffer_minutes", 30)
+    new_mins = _time_to_minutes(time_str)
+
+    all_domains = db.select("domains", {
+        "select": "id,name,url,scan_schedule",
+        "scan_schedule": "not.is.null",
+    })
+
+    conflicts = []
+    for d in all_domains:
+        if d["id"] == domain_id:
+            continue
+        sched = _parse_schedule_field(d.get("scan_schedule"))
+        if not sched or sched.get("mode") != "daily" or not sched.get("time"):
+            continue
+        existing_mins = _time_to_minutes(sched["time"])
+        diff = abs(new_mins - existing_mins)
+        # Handle wrap-around midnight (e.g., 23:50 vs 00:10)
+        diff = min(diff, 1440 - diff)
+        if diff < buffer:
+            conflicts.append({
+                "id": d["id"],
+                "name": d.get("name") or d.get("url"),
+                "time": sched["time"],
+                "diff_minutes": diff,
+            })
+    return conflicts
+
+
+@bp.route("/schedules", methods=["GET"])
+def list_all_schedules():
+    """Get all domains with their schedule info for the management view."""
+    all_domains = db.select("domains", {
+        "select": "id,name,url,scan_schedule",
+        "order": "name.asc",
+    })
+    result = []
+    for d in all_domains:
+        sched = _parse_schedule_field(d.get("scan_schedule"))
+        result.append({
+            "id": d["id"],
+            "name": d.get("name") or d.get("url"),
+            "url": d.get("url"),
+            "schedule": sched,
+            "time": sched.get("time") if sched and sched.get("mode") == "daily" else None,
+            "enabled": bool(sched and sched.get("mode") == "daily"),
+        })
+    return jsonify(result)
+
 @bp.route("/<domain_id>/schedule", methods=["GET"])
 def get_schedule(domain_id):
     """Get current auto-scan schedule config for a domain."""
@@ -108,13 +178,7 @@ def get_schedule(domain_id):
     })
     if not rows:
         return jsonify({"error": "Domain not found"}), 404
-    raw = rows[0].get("scan_schedule")
-    # Parse JSON string if needed (Supabase may return string for JSONB)
-    if isinstance(raw, str):
-        try:
-            raw = json.loads(raw)
-        except (json.JSONDecodeError, TypeError):
-            raw = None
+    raw = _parse_schedule_field(rows[0].get("scan_schedule"))
     return jsonify({"schedule": raw})
 
 
@@ -140,6 +204,20 @@ def update_schedule(domain_id):
         assert 0 <= int(h) <= 23 and 0 <= int(m) <= 59
     except Exception:
         return jsonify({"error": "time must be HH:MM format"}), 400
+
+    # Check for time conflicts with other domains
+    force = data.get("force", False)
+    if not force:
+        conflicts = _check_time_conflict(domain_id, time_str)
+        if conflicts:
+            buffer = get_scan_config().get("schedule_buffer_minutes", 30)
+            names = ", ".join(f"{c['name']} ({c['time']})" for c in conflicts)
+            return jsonify({
+                "error": "conflict",
+                "message": f"Trùng lịch (trong {buffer} phút) với: {names}",
+                "conflicts": conflicts,
+                "buffer_minutes": buffer,
+            }), 409
 
     schedule = {
         "mode": "daily",

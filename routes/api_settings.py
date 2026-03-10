@@ -10,6 +10,7 @@ DEFAULTS = {
     "dimension_threshold_px": "3000",
     "scan_limit_per_day": "1",
     "max_pages_per_scan": "50",
+    "schedule_buffer_minutes": "30",
 }
 
 
@@ -84,4 +85,5 @@ def get_scan_config():
         "dimension_threshold_px": float(config.get("dimension_threshold_px", DEFAULTS["dimension_threshold_px"])),
         "scan_limit_per_day": int(config.get("scan_limit_per_day", DEFAULTS["scan_limit_per_day"])),
         "max_pages_per_scan": int(config.get("max_pages_per_scan", DEFAULTS["max_pages_per_scan"])),
+        "schedule_buffer_minutes": int(config.get("schedule_buffer_minutes", DEFAULTS["schedule_buffer_minutes"])),
     }
