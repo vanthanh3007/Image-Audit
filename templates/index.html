@@ -278,8 +278,10 @@
           <label class="text-xs text-slate-500">Độ sâu:</label>
           <select id="scanDepth" class="px-2 py-2 rounded-lg bg-white dark:bg-d-surface-3 border border-slate-200 dark:border-white/10 text-sm text-slate-900 dark:text-white outline-none cursor-pointer">
             <option value="1">Cấp 1 (nhanh)</option>
-            <option value="2" selected>Cấp 2 (chi tiết)</option>
-            <option value="3">Cấp 3 (sâu nhất)</option>
+            <option value="2">Cấp 2</option>
+            <option value="3">Cấp 3</option>
+            <option value="4">Cấp 4</option>
+            <option value="5" selected>Cấp 5 (mặc định)</option>
           </select>
         </div>
         <div class="flex items-center gap-2">
@@ -288,9 +290,7 @@
             <option value="50">50 trang</option>
             <option value="100">100 trang</option>
             <option value="200" selected>200 trang</option>
-            <option value="500">500 trang</option>
-            <option value="1000">1000 trang</option>
-            <option value="0">Không giới hạn</option>
+            <option value="500">500 trang (tối đa)</option>
           </select>
         </div>
         <button onclick="runScan()" id="scanBtn" class="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-semibold rounded-lg transition cursor-pointer inline-flex items-center gap-2 shadow-sm hover:shadow">
@@ -302,9 +302,18 @@
 
     <!-- Scan progress -->
     <div id="scanProgress" class="hidden mb-6 p-4 bg-blue-50 dark:bg-brand/10 rounded-lg border border-blue-100 dark:border-brand/20">
-      <div class="flex items-center gap-3">
-        <div class="spinner"></div>
-        <span class="text-sm text-slate-600 dark:text-slate-300">Đang scan... có thể mất vài phút tuỳ số lượng trang</span>
+      <div class="flex items-center justify-between">
+        <div class="flex items-center gap-3">
+          <div class="spinner"></div>
+          <div>
+            <span class="text-sm text-slate-600 dark:text-slate-300">Đang scan... kết quả được lưu liên tục</span>
+            <div class="text-xs text-slate-400 mt-0.5">Tối đa 15 phút. Nhấn dừng để lưu kết quả hiện tại.</div>
+          </div>
+        </div>
+        <button onclick="stopScan()" id="stopBtn" class="px-4 py-2 bg-red-600 hover:bg-red-500 text-white text-xs font-semibold rounded-lg transition cursor-pointer inline-flex items-center gap-1.5">
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="1"/></svg>
+          Dừng scan
+        </button>
       </div>
     </div>
 
@@ -314,6 +323,7 @@
       <button onclick="switchTab('history')" class="tab-btn px-4 py-2.5 text-sm font-medium transition cursor-pointer" data-tab="history">Lịch sử Scan</button>
       <button onclick="switchTab('schedule')" class="tab-btn px-4 py-2.5 text-sm font-medium transition cursor-pointer" data-tab="schedule">Auto-Scan</button>
       <button onclick="switchTab('config')" class="tab-btn px-4 py-2.5 text-sm font-medium transition cursor-pointer" data-tab="config">Cấu hình</button>
+      <button onclick="switchTab('params')" class="tab-btn px-4 py-2.5 text-sm font-medium transition cursor-pointer" data-tab="params">URL Params</button>
     </div>
 
     <!-- Tab: Rules -->
@@ -375,6 +385,54 @@
 
       <div id="rulesTable" class="space-y-2"></div>
       <div id="rulesEmpty" class="text-center text-slate-400 py-8 text-sm hidden">Chưa có rule nào. Thêm rule để phân loại trang khi scan.</div>
+    </div>
+
+    <!-- Tab: URL Params Config -->
+    <div id="tab-params" class="tab-content hidden">
+      <div class="mb-4">
+        <p class="text-sm text-slate-500 dark:text-slate-400 mb-4">Cấu hình cách xử lý query params khi quét trang. Params bị bỏ qua sẽ không tạo thêm trang mới (ví dụ: <code class="text-brand dark:text-blue-400">?page=1</code> và <code class="text-brand dark:text-blue-400">?page=2</code> coi như 1 trang).</p>
+
+        <!-- Mode selector -->
+        <div class="mb-5 p-4 bg-white dark:bg-d-surface-3 rounded-lg border border-slate-200 dark:border-white/5">
+          <label class="text-xs text-slate-500 mb-2 block">Chế độ dedup</label>
+          <select id="paramsMode" onchange="saveParamsMode()" class="px-3 py-2 rounded-lg bg-slate-50 dark:bg-d-surface-4 border border-slate-200 dark:border-white/10 text-sm text-slate-900 dark:text-white outline-none cursor-pointer w-full max-w-xs">
+            <option value="ignore_list">Bỏ qua danh sách params (mặc định)</option>
+            <option value="keep_list">Chỉ giữ danh sách params</option>
+            <option value="strip_all">Bỏ tất cả params (chỉ tính path)</option>
+            <option value="keep_all">Giữ tất cả params (mỗi URL là 1 trang)</option>
+          </select>
+        </div>
+
+        <!-- Ignore params list -->
+        <div id="paramsIgnoreSection" class="mb-5">
+          <div class="flex items-center justify-between mb-2">
+            <span class="text-sm font-medium text-slate-700 dark:text-slate-300">Params bỏ qua <span class="text-xs text-slate-400">(pagination, sorting, tracking)</span></span>
+          </div>
+          <div class="flex gap-2 mb-3">
+            <input id="newIgnoreParam" type="text" placeholder="Tên param, ví dụ: page" class="px-3 py-2 rounded-lg bg-slate-50 dark:bg-d-surface-3 border border-slate-200 dark:border-white/10 text-slate-900 dark:text-white text-sm outline-none focus:border-brand w-48 transition" onkeydown="if(event.key==='Enter')addParamTo('ignore')"/>
+            <button onclick="addParamTo('ignore')" class="px-3 py-2 bg-red-100 dark:bg-red-600/20 hover:bg-red-200 dark:hover:bg-red-600/40 text-red-600 dark:text-red-300 text-xs rounded-lg transition cursor-pointer border border-red-200 dark:border-red-500/20">+ Bỏ qua</button>
+          </div>
+          <div id="ignoreParamsList" class="flex flex-wrap gap-2"></div>
+        </div>
+
+        <!-- Keep params list -->
+        <div id="paramsKeepSection" class="mb-5">
+          <div class="flex items-center justify-between mb-2">
+            <span class="text-sm font-medium text-slate-700 dark:text-slate-300">Params giữ lại <span class="text-xs text-slate-400">(id, filter, search)</span></span>
+          </div>
+          <div class="flex gap-2 mb-3">
+            <input id="newKeepParam" type="text" placeholder="Tên param, ví dụ: id" class="px-3 py-2 rounded-lg bg-slate-50 dark:bg-d-surface-3 border border-slate-200 dark:border-white/10 text-slate-900 dark:text-white text-sm outline-none focus:border-brand w-48 transition" onkeydown="if(event.key==='Enter')addParamTo('keep')"/>
+            <button onclick="addParamTo('keep')" class="px-3 py-2 bg-emerald-100 dark:bg-emerald-600/20 hover:bg-emerald-200 dark:hover:bg-emerald-600/40 text-emerald-600 dark:text-emerald-300 text-xs rounded-lg transition cursor-pointer border border-emerald-200 dark:border-emerald-500/20">+ Giữ lại</button>
+          </div>
+          <div id="keepParamsList" class="flex flex-wrap gap-2"></div>
+        </div>
+
+        <!-- Preview example -->
+        <div class="p-4 bg-slate-50 dark:bg-d-surface-2 rounded-lg border border-slate-200 dark:border-white/5">
+          <span class="text-xs text-slate-500 block mb-2">Ví dụ dedup</span>
+          <div id="paramsPreview" class="text-xs text-slate-500 dark:text-slate-400 space-y-1"></div>
+        </div>
+      </div>
     </div>
 
     <!-- Tab: History -->
@@ -700,6 +758,8 @@ function switchTab(tab) {
   if (tab === 'history' && currentDomainId && currentDomain) {
     pushUrl(`/${getDomainSlug(currentDomain)}/history`);
     loadHistory();
+  } else if (tab === 'params' && currentDomainId) {
+    loadParamsConfig();
   } else if (tab === 'schedule' && currentDomainId) {
     loadSchedule();
   } else if (tab === 'config' && currentDomainId) {
@@ -904,7 +964,7 @@ async function runScan() {
   const btn = document.getElementById('scanBtn');
   const progress = document.getElementById('scanProgress');
   const crawlMethod = document.getElementById('scanMethod').value;
-  const depth = parseInt(document.getElementById('scanDepth').value) || 2;
+  const depth = parseInt(document.getElementById('scanDepth').value) || 5;
   const maxPages = parseInt(document.getElementById('scanMaxPages').value) || 200;
   btn.disabled = true; progress.classList.remove('hidden');
   try {
@@ -912,14 +972,55 @@ async function runScan() {
       method: 'POST',
       body: JSON.stringify({ crawl_method: crawlMethod, max_depth: depth, max_pages: maxPages }),
     });
-    toast(`Scan xong: ${data.pages_scanned} trang, ${data.total_images} ảnh, ${data.flagged_count} cần chú ý`);
+    // Save session_id for stop button
+    window._runningScanSession = data.session_id;
+    const statusMsg = data.stop_reason === 'timeout' ? ' (timeout - kết quả đã lưu)' : data.stop_reason === 'stopped' ? ' (đã dừng - kết quả đã lưu)' : '';
+    toast(`Scan xong: ${data.pages_scanned} trang, ${data.total_images} ảnh, ${data.flagged_count} cần chú ý${statusMsg}`);
     switchTab('history');
     loadHistory();
-  } catch(e) {} finally { btn.disabled = false; progress.classList.add('hidden'); }
+  } catch(e) {} finally { btn.disabled = false; progress.classList.add('hidden'); window._runningScanSession = null; }
+}
+
+async function stopScan() {
+  const sessionId = window._runningScanSession;
+  if (!sessionId) { toast('Không có scan nào đang chạy', true); return; }
+  const btn = document.getElementById('stopBtn');
+  btn.disabled = true; btn.textContent = 'Đang dừng...';
+  try {
+    await api(`/api/scan/stop/${sessionId}`, { method: 'POST' });
+    toast('Đã gửi tín hiệu dừng. Scan sẽ dừng sau vài giây.');
+  } catch(e) {} finally { btn.disabled = false; btn.textContent = 'Dừng scan'; }
+}
+
+async function stopScanFromHistory(sessionId, btnEl) {
+  btnEl.disabled = true;
+  btnEl.innerHTML = '<svg class="w-3 h-3 animate-spin" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/></svg> Đang dừng...';
+  try {
+    await api(`/api/scan/stop/${sessionId}`, { method: 'POST' });
+    toast('Đã gửi tín hiệu dừng.');
+    // Auto-refresh history after a few seconds to show updated status
+    setTimeout(() => loadHistory(), 3000);
+  } catch(e) { btnEl.disabled = false; btnEl.textContent = 'Dừng'; }
+}
+
+// Auto-refresh history if any scan is running
+let _historyRefreshTimer = null;
+function startHistoryAutoRefresh() {
+  stopHistoryAutoRefresh();
+  _historyRefreshTimer = setInterval(async () => {
+    if (!currentDomainId) return;
+    const tab = document.getElementById('tab-history');
+    if (tab && !tab.classList.contains('hidden')) {
+      await loadHistory(true); // silent reload
+    }
+  }, 8000); // refresh every 8 seconds
+}
+function stopHistoryAutoRefresh() {
+  if (_historyRefreshTimer) { clearInterval(_historyRefreshTimer); _historyRefreshTimer = null; }
 }
 
 // ========== HISTORY ==========
-async function loadHistory() {
+async function loadHistory(silent) {
   try {
     const sessions = await api(`/api/scan/history/${currentDomainId}`);
     const list = document.getElementById('historyList');
@@ -929,14 +1030,14 @@ async function loadHistory() {
 
     list.innerHTML = sessions.map(s => {
       const date = new Date(s.scanned_at);
-      const statusColor = s.status === 'completed' ? 'text-emerald-600 dark:text-emerald-400' : s.status === 'running' ? 'text-amber-600 dark:text-amber-400' : 'text-red-600 dark:text-red-400';
+      const statusColor = s.status === 'completed' ? 'text-emerald-600 dark:text-emerald-400' : s.status === 'running' ? 'text-amber-600 dark:text-amber-400' : s.status === 'timeout' ? 'text-orange-600 dark:text-orange-400' : s.status === 'stopped' ? 'text-blue-600 dark:text-blue-400' : 'text-red-600 dark:text-red-400';
       const methodLabels = { auto: 'Auto', sitemap: 'Sitemap', bfs: 'BFS Crawl', headless: 'Headless' };
       const methodLabel = methodLabels[s.crawl_method] || s.crawl_method || '—';
       const maxPagesLabel = s.max_pages === 0 ? 'Không giới hạn' : s.max_pages ? `${s.max_pages} trang` : '—';
       const pagesScanned = s.pages_scanned != null ? `${s.pages_scanned} trang` : '';
       return `
         <div class="flex items-center justify-between p-4 bg-white dark:bg-d-surface-3 rounded-xl border border-slate-200 dark:border-white/5 hover:border-brand/30 dark:hover:border-brand/30 transition">
-          <div class="${s.status === 'completed' ? 'cursor-pointer' : ''} flex-1" ${s.status === 'completed' ? `onclick="navigate('results','${s.id}')"` : ''}>
+          <div class="${['completed','timeout','stopped'].includes(s.status) ? 'cursor-pointer' : ''} flex-1" ${['completed','timeout','stopped'].includes(s.status) ? `onclick="navigate('results','${s.id}')"` : ''}>
             <div class="text-slate-900 dark:text-white text-sm font-medium">${date.toLocaleDateString('vi-VN')} ${date.toLocaleTimeString('vi-VN')}</div>
             <div class="text-xs text-slate-400 mt-1">${s.total_images} ảnh &middot; ${s.flagged_count} cần chú ý${pagesScanned ? ` &middot; ${pagesScanned} đã quét` : ''}</div>
             <div class="flex items-center gap-2 mt-1.5">
@@ -945,13 +1046,19 @@ async function loadHistory() {
             </div>
           </div>
           <div class="flex items-center gap-2">
-            ${s.status === 'completed' ? `<button onclick="event.stopPropagation(); reanalyze('${s.id}', this)" class="text-xs px-3 py-1.5 bg-slate-100 dark:bg-d-surface-4 hover:bg-brand/10 dark:hover:bg-brand/20 text-slate-600 dark:text-slate-300 hover:text-brand rounded-md transition cursor-pointer" title="Đo lại ảnh thiếu kích thước">Đo lại</button>` : ''}
-            ${s.status === 'completed' ? `<button onclick="event.stopPropagation(); recategorize('${s.id}')" class="text-xs px-3 py-1.5 bg-slate-100 dark:bg-d-surface-4 hover:bg-brand/10 dark:hover:bg-brand/20 text-slate-600 dark:text-slate-300 hover:text-brand rounded-md transition cursor-pointer" title="Áp dụng rules hiện tại">Phân loại lại</button>` : ''}
-            <span class="text-xs font-medium ${statusColor}">${s.status === 'completed' ? 'Hoàn thành' : s.status === 'running' ? 'Đang chạy' : 'Lỗi'}</span>
+            ${['running','stopping'].includes(s.status) ? `<button onclick="event.stopPropagation(); stopScanFromHistory('${s.id}', this)" class="text-xs px-3 py-1.5 bg-red-100 dark:bg-red-500/20 hover:bg-red-200 dark:hover:bg-red-500/30 text-red-600 dark:text-red-400 rounded-md transition cursor-pointer inline-flex items-center gap-1" ${s.status === 'stopping' ? 'disabled' : ''}><svg class="w-3 h-3" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="1"/></svg>${s.status === 'stopping' ? 'Đang dừng...' : 'Dừng'}</button>` : ''}
+            ${['completed','timeout','stopped'].includes(s.status) ? `<button onclick="event.stopPropagation(); reanalyze('${s.id}', this)" class="text-xs px-3 py-1.5 bg-slate-100 dark:bg-d-surface-4 hover:bg-brand/10 dark:hover:bg-brand/20 text-slate-600 dark:text-slate-300 hover:text-brand rounded-md transition cursor-pointer" title="Đo lại ảnh thiếu kích thước">Đo lại</button>` : ''}
+            ${['completed','timeout','stopped'].includes(s.status) ? `<button onclick="event.stopPropagation(); recategorize('${s.id}')" class="text-xs px-3 py-1.5 bg-slate-100 dark:bg-d-surface-4 hover:bg-brand/10 dark:hover:bg-brand/20 text-slate-600 dark:text-slate-300 hover:text-brand rounded-md transition cursor-pointer" title="Áp dụng rules hiện tại">Phân loại lại</button>` : ''}
+            <span class="text-xs font-medium ${statusColor}">${({completed:'Hoàn thành', running:'Đang chạy', stopping:'Đang dừng...', stopped:'Đã dừng', timeout:'Timeout', failed:'Lỗi'})[s.status] || s.status}</span>
           </div>
         </div>
       `;
     }).join('');
+
+    // Auto-refresh if any scan is running/stopping
+    const hasRunning = sessions.some(s => ['running','stopping'].includes(s.status));
+    if (hasRunning) { startHistoryAutoRefresh(); } else { stopHistoryAutoRefresh(); }
+
   } catch(e) {}
 }
 
@@ -1606,6 +1713,149 @@ async function boot() {
       showView('login');
     }
   }
+}
+
+// ========== URL PARAMS CONFIG ==========
+let currentParamsConfig = null;
+
+async function loadParamsConfig() {
+  try {
+    currentParamsConfig = await api(`/api/domains/${currentDomainId}/params-config`);
+    renderParamsConfig();
+  } catch(e) {}
+}
+
+function renderParamsConfig() {
+  const c = currentParamsConfig;
+  if (!c) return;
+
+  // Set mode dropdown
+  const modeSelect = document.getElementById('paramsMode');
+  modeSelect.value = c.mode || 'ignore_list';
+  updateParamsSections(c.mode);
+
+  // Render ignore list
+  const ignoreEl = document.getElementById('ignoreParamsList');
+  ignoreEl.innerHTML = (c.ignore_params || []).map(p => `
+    <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-red-100 dark:bg-red-500/15 border border-red-200 dark:border-red-500/20 text-red-600 dark:text-red-300 text-xs">
+      <code>${esc(p)}</code>
+      <button onclick="removeParam('${esc(p)}')" class="hover:text-red-800 dark:hover:text-red-100 cursor-pointer ml-0.5">&times;</button>
+    </span>
+  `).join('');
+  if (!c.ignore_params?.length) ignoreEl.innerHTML = '<span class="text-xs text-slate-400">Chưa có param nào</span>';
+
+  // Render keep list
+  const keepEl = document.getElementById('keepParamsList');
+  keepEl.innerHTML = (c.keep_params || []).map(p => `
+    <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-emerald-100 dark:bg-emerald-500/15 border border-emerald-200 dark:border-emerald-500/20 text-emerald-600 dark:text-emerald-300 text-xs">
+      <code>${esc(p)}</code>
+      <button onclick="removeParam('${esc(p)}')" class="hover:text-emerald-800 dark:hover:text-emerald-100 cursor-pointer ml-0.5">&times;</button>
+    </span>
+  `).join('');
+  if (!c.keep_params?.length) keepEl.innerHTML = '<span class="text-xs text-slate-400">Chưa có param nào</span>';
+
+  // Preview
+  renderParamsPreview();
+}
+
+function updateParamsSections(mode) {
+  const ignSec = document.getElementById('paramsIgnoreSection');
+  const keepSec = document.getElementById('paramsKeepSection');
+  if (mode === 'strip_all' || mode === 'keep_all') {
+    ignSec.style.opacity = '0.3'; ignSec.style.pointerEvents = 'none';
+    keepSec.style.opacity = '0.3'; keepSec.style.pointerEvents = 'none';
+  } else if (mode === 'keep_list') {
+    ignSec.style.opacity = '0.3'; ignSec.style.pointerEvents = 'none';
+    keepSec.style.opacity = '1'; keepSec.style.pointerEvents = 'auto';
+  } else {
+    ignSec.style.opacity = '1'; ignSec.style.pointerEvents = 'auto';
+    keepSec.style.opacity = '0.3'; keepSec.style.pointerEvents = 'none';
+  }
+}
+
+function renderParamsPreview() {
+  const el = document.getElementById('paramsPreview');
+  const c = currentParamsConfig;
+  if (!c) { el.innerHTML = ''; return; }
+
+  const domain = currentDomain?.url || 'https://example.com';
+  const ex1 = `${domain}/tim-kiem?q=toyota&page=1&sort=price`;
+  const ex2 = `${domain}/tim-kiem?q=toyota&page=2&sort=name`;
+  const ex3 = `${domain}/chi-tiet?id=123&fbclid=abc`;
+
+  // Simulate normalize
+  function simNorm(url) {
+    try {
+      const u = new URL(url);
+      const params = new URLSearchParams(u.search);
+      const mode = c.mode || 'ignore_list';
+      if (mode === 'strip_all') return u.origin + u.pathname;
+      if (mode === 'keep_all') return url;
+      const ignore = new Set((c.ignore_params || []).map(p => p.toLowerCase()));
+      const keep = new Set((c.keep_params || []).map(p => p.toLowerCase()));
+      const filtered = [];
+      for (const [k, v] of [...params].sort()) {
+        if (mode === 'ignore_list' && !ignore.has(k.toLowerCase())) filtered.push(`${k}=${v}`);
+        else if (mode === 'keep_list' && keep.has(k.toLowerCase())) filtered.push(`${k}=${v}`);
+      }
+      return u.origin + u.pathname + (filtered.length ? '?' + filtered.join('&') : '');
+    } catch { return url; }
+  }
+
+  const n1 = simNorm(ex1), n2 = simNorm(ex2), n3 = simNorm(ex3);
+  const same = n1 === n2;
+
+  el.innerHTML = `
+    <div class="space-y-2">
+      <div><span class="text-slate-400">URL 1:</span> <code class="text-slate-700 dark:text-slate-300">${esc(ex1)}</code></div>
+      <div><span class="text-slate-400">URL 2:</span> <code class="text-slate-700 dark:text-slate-300">${esc(ex2)}</code></div>
+      <div class="pt-1"><span class="text-slate-400">Dedup 1:</span> <code class="text-brand dark:text-blue-400">${esc(n1)}</code></div>
+      <div><span class="text-slate-400">Dedup 2:</span> <code class="text-brand dark:text-blue-400">${esc(n2)}</code></div>
+      <div class="pt-1 font-medium ${same ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-600 dark:text-amber-400'}">${same ? '= Cùng 1 trang (bỏ qua page/sort)' : '= 2 trang khác nhau'}</div>
+      <div class="pt-2 border-t border-slate-200 dark:border-white/5 mt-2"><span class="text-slate-400">URL 3:</span> <code class="text-slate-700 dark:text-slate-300">${esc(ex3)}</code></div>
+      <div><span class="text-slate-400">Dedup 3:</span> <code class="text-brand dark:text-blue-400">${esc(n3)}</code></div>
+    </div>
+  `;
+}
+
+async function saveParamsMode() {
+  if (!currentParamsConfig) return;
+  const mode = document.getElementById('paramsMode').value;
+  currentParamsConfig.mode = mode;
+  updateParamsSections(mode);
+  renderParamsPreview();
+  try {
+    await api(`/api/domains/${currentDomainId}/params-config`, {
+      method: 'PUT', body: JSON.stringify(currentParamsConfig)
+    });
+    toast('Đã lưu chế độ');
+  } catch(e) {}
+}
+
+async function addParamTo(list) {
+  const inputId = list === 'ignore' ? 'newIgnoreParam' : 'newKeepParam';
+  const param = document.getElementById(inputId).value.trim().toLowerCase();
+  if (!param) return;
+  try {
+    const data = await api(`/api/domains/${currentDomainId}/params-config/add`, {
+      method: 'POST', body: JSON.stringify({ param, list })
+    });
+    currentParamsConfig = data.config;
+    document.getElementById(inputId).value = '';
+    renderParamsConfig();
+    toast(`Đã thêm "${param}" vào danh sách ${list === 'ignore' ? 'bỏ qua' : 'giữ lại'}`);
+  } catch(e) {}
+}
+
+async function removeParam(param) {
+  try {
+    const data = await api(`/api/domains/${currentDomainId}/params-config/remove`, {
+      method: 'POST', body: JSON.stringify({ param })
+    });
+    currentParamsConfig = data.config;
+    renderParamsConfig();
+    toast(`Đã xoá "${param}"`);
+  } catch(e) {}
 }
 
 // Boot

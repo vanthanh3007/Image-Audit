@@ -86,26 +86,32 @@ def _parse_webp_dimensions(data):
     return None, None
 
 
-def get_all_links(page_url, max_depth=2, max_pages=200):
+def get_all_links(page_url, max_depth=2, max_pages=200, params_config=None):
     """BFS crawl to discover internal links up to max_depth levels deep.
 
     depth=0: homepage only
     depth=1: homepage + links on homepage
     depth=2: + links found on depth-1 pages (detail pages)
+
+    params_config: per-domain URL params config for deduplication
     """
+    from services.url_normalizer import normalize_url
+
     base_domain = urlparse(page_url).netloc
 
-    visited = set()
+    visited = set()       # normalized URLs for dedup
+    url_map = {}          # normalized → original URL
     queue = [(page_url, 0)]  # (url, current_depth)
-    all_links = set()
+    all_links = []
 
     while queue and len(visited) < max_pages:
         current_url, depth = queue.pop(0)
 
-        if current_url in visited:
+        norm = normalize_url(current_url, params_config)
+        if norm in visited:
             continue
-        visited.add(current_url)
-        all_links.add(current_url)
+        visited.add(norm)
+        all_links.append(current_url)
 
         # Don't crawl deeper than max_depth
         if depth >= max_depth:
@@ -141,11 +147,11 @@ def get_all_links(page_url, max_depth=2, max_pages=200):
             if ext in ("pdf", "zip", "doc", "docx", "xls", "xlsx", "mp4", "mp3", "avi"):
                 continue
 
-            if clean not in visited:
-                all_links.add(clean)
+            norm_clean = normalize_url(clean, params_config)
+            if norm_clean not in visited:
                 queue.append((clean, depth + 1))
 
-    return list(all_links), None
+    return all_links, None
 
 
 def get_links_from_sitemap(base_url, max_pages=500):

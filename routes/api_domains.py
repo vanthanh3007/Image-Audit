@@ -1,8 +1,9 @@
-"""API routes for domain management, schedule config, and per-domain scan settings."""
+"""API routes for domain management, schedule config, per-domain scan settings, and URL params config."""
 import json
 from flask import Blueprint, request, jsonify
 from services import supabase_client as db
 from routes.api_settings import get_scan_config
+from services.url_normalizer import DEFAULT_PARAMS_CONFIG
 
 bp = Blueprint("domains", __name__, url_prefix="/api/domains")
 
@@ -95,6 +96,116 @@ def update_domain_config(domain_id):
 
     db.update("domains", {"id": f"eq.{domain_id}"}, updates)
     return jsonify({"ok": True, "updated": updates})
+
+
+# ─── URL Params Config ───
+
+def _parse_params_config(raw):
+    """Parse url_params_config which may be JSON string or dict."""
+    if raw is None:
+        return DEFAULT_PARAMS_CONFIG
+    if isinstance(raw, str):
+        try:
+            return json.loads(raw)
+        except (json.JSONDecodeError, TypeError):
+            return DEFAULT_PARAMS_CONFIG
+    return raw
+
+
+@bp.route("/<domain_id>/params-config", methods=["GET"])
+def get_params_config(domain_id):
+    """Get URL params config for a domain."""
+    rows = db.select("domains", {
+        "id": f"eq.{domain_id}",
+        "select": "url_params_config",
+    })
+    if not rows:
+        return jsonify({"error": "Domain not found"}), 404
+    config = _parse_params_config(rows[0].get("url_params_config"))
+    return jsonify(config)
+
+
+@bp.route("/<domain_id>/params-config", methods=["PUT"])
+def update_params_config(domain_id):
+    """Update URL params config for a domain.
+
+    Body: { "mode": "ignore_list", "ignore_params": [...], "keep_params": [...] }
+    """
+    data = request.get_json()
+    mode = data.get("mode", "ignore_list")
+
+    if mode not in ("ignore_list", "keep_list", "strip_all", "keep_all"):
+        return jsonify({"error": "mode must be: ignore_list, keep_list, strip_all, keep_all"}), 400
+
+    config = {
+        "mode": mode,
+        "ignore_params": [p.strip().lower() for p in data.get("ignore_params", []) if p.strip()],
+        "keep_params": [p.strip().lower() for p in data.get("keep_params", []) if p.strip()],
+    }
+
+    db.update("domains", {"id": f"eq.{domain_id}"}, {
+        "url_params_config": json.dumps(config),
+    })
+    return jsonify({"ok": True, "config": config})
+
+
+@bp.route("/<domain_id>/params-config/add", methods=["POST"])
+def add_param_to_config(domain_id):
+    """Add a single param to either ignore or keep list.
+
+    Body: { "param": "page", "list": "ignore" | "keep" }
+    """
+    data = request.get_json()
+    param = (data.get("param") or "").strip().lower()
+    target_list = data.get("list", "ignore")
+
+    if not param:
+        return jsonify({"error": "param is required"}), 400
+    if target_list not in ("ignore", "keep"):
+        return jsonify({"error": "list must be 'ignore' or 'keep'"}), 400
+
+    rows = db.select("domains", {"id": f"eq.{domain_id}", "select": "url_params_config"})
+    if not rows:
+        return jsonify({"error": "Domain not found"}), 404
+
+    config = _parse_params_config(rows[0].get("url_params_config"))
+
+    if target_list == "ignore":
+        if param not in config.get("ignore_params", []):
+            config.setdefault("ignore_params", []).append(param)
+        # Remove from keep if it's there
+        config["keep_params"] = [p for p in config.get("keep_params", []) if p != param]
+    else:
+        if param not in config.get("keep_params", []):
+            config.setdefault("keep_params", []).append(param)
+        # Remove from ignore if it's there
+        config["ignore_params"] = [p for p in config.get("ignore_params", []) if p != param]
+
+    db.update("domains", {"id": f"eq.{domain_id}"}, {"url_params_config": json.dumps(config)})
+    return jsonify({"ok": True, "config": config})
+
+
+@bp.route("/<domain_id>/params-config/remove", methods=["POST"])
+def remove_param_from_config(domain_id):
+    """Remove a single param from both lists.
+
+    Body: { "param": "page" }
+    """
+    data = request.get_json()
+    param = (data.get("param") or "").strip().lower()
+    if not param:
+        return jsonify({"error": "param is required"}), 400
+
+    rows = db.select("domains", {"id": f"eq.{domain_id}", "select": "url_params_config"})
+    if not rows:
+        return jsonify({"error": "Domain not found"}), 404
+
+    config = _parse_params_config(rows[0].get("url_params_config"))
+    config["ignore_params"] = [p for p in config.get("ignore_params", []) if p != param]
+    config["keep_params"] = [p for p in config.get("keep_params", []) if p != param]
+
+    db.update("domains", {"id": f"eq.{domain_id}"}, {"url_params_config": json.dumps(config)})
+    return jsonify({"ok": True, "config": config})
 
 
 # ─── Schedule CRUD ───

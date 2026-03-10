@@ -101,7 +101,7 @@ def run_scan(domain_id):
     # Parse crawl settings from request
     data = request.get_json(silent=True) or {}
     crawl_method = data.get("crawl_method", "auto")
-    max_depth = min(int(data.get("max_depth", 2)), 3)
+    max_depth = int(data.get("max_depth", 5))
     max_pages = int(data.get("max_pages", 200))
 
     try:
@@ -113,6 +113,24 @@ def run_scan(domain_id):
         return jsonify({"error": str(e)}), 400
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+
+@bp.route("/stop/<session_id>", methods=["POST"])
+def stop_scan(session_id):
+    """Request a running scan to stop. Results saved so far are preserved."""
+    sessions = db.select("scan_sessions", {
+        "id": f"eq.{session_id}",
+        "select": "status",
+    })
+    if not sessions:
+        return jsonify({"error": "Session not found"}), 404
+
+    if sessions[0]["status"] != "running":
+        return jsonify({"error": "Scan is not running"}), 400
+
+    # Set status to 'stopping' - executor checks this flag
+    db.update("scan_sessions", {"id": f"eq.{session_id}"}, {"status": "stopping"})
+    return jsonify({"ok": True, "message": "Stop signal sent. Scan will stop shortly."})
 
 
 @bp.route("/history/<domain_id>", methods=["GET"])
