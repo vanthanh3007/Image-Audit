@@ -1,0 +1,1069 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Image Audit Tool</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+  <link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;500;600;700&family=Poppins:wght@500;600;700&display=swap" rel="stylesheet"/>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: { heading: ['Poppins','sans-serif'], body: ['Open Sans','sans-serif'] },
+          colors: {
+            brand: { DEFAULT:'#2563EB', light:'#3B82F6', dark:'#1D4ED8' },
+            cta: '#F97316',
+            surface: { 1:'#F8FAFC', 2:'#FFFFFF', 3:'#F1F5F9', 4:'#E2E8F0' },
+            'd-surface': { 1:'#0f1117', 2:'#161822', 3:'#1e2030', 4:'#262a3e' },
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    body { font-family: 'Open Sans', system-ui, sans-serif; }
+    h1,h2,h3,.font-heading { font-family: 'Poppins', sans-serif; }
+    .spinner { border:3px solid #E2E8F0; border-top-color:#2563EB; border-radius:50%; width:24px; height:24px; animation:spin .6s linear infinite; }
+    .dark .spinner { border-color:#262a3e; border-top-color:#818cf8; }
+    @keyframes spin { to { transform:rotate(360deg); } }
+    [data-view] { display:none; }
+    [data-view].active { display:block; }
+    .thumb { width:52px; height:38px; object-fit:cover; border-radius:6px; background:#E2E8F0; }
+    .dark .thumb { background:#262a3e; }
+    .fade-in { animation:fadeIn .25s ease-out; }
+    @keyframes fadeIn { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
+    @media(prefers-reduced-motion:reduce){ .fade-in{animation:none} }
+  </style>
+</head>
+<body class="bg-surface-1 text-slate-700 min-h-screen dark:bg-d-surface-1 dark:text-slate-300 transition-colors duration-200">
+
+<!-- Sticky top nav -->
+<nav class="sticky top-0 z-50 bg-white/80 dark:bg-d-surface-2/80 backdrop-blur border-b border-slate-200 dark:border-white/5 transition-colors duration-200">
+  <div class="max-w-6xl mx-auto flex items-center justify-between px-4 md:px-6 py-3">
+    <div class="flex items-center gap-3">
+      <!-- Back button (hidden on home) -->
+      <button id="navBack" onclick="navGoBack()" class="hidden p-1.5 -ml-1.5 rounded-lg text-slate-400 hover:text-brand hover:bg-brand/5 dark:hover:bg-white/5 transition cursor-pointer" aria-label="Quay lại">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"/></svg>
+      </button>
+      <!-- Logo + title -->
+      <button onclick="navigate('home')" class="flex items-center gap-2 cursor-pointer group">
+        <svg class="w-6 h-6 text-brand" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+        <span class="font-heading font-semibold text-slate-900 dark:text-white text-lg group-hover:text-brand transition">Image Audit</span>
+      </button>
+      <!-- Page title breadcrumb -->
+      <span id="navPageTitle" class="text-sm text-slate-400 dark:text-slate-500 hidden">
+        <span class="mx-1.5">/</span>
+        <span id="navPageTitleText"></span>
+      </span>
+    </div>
+    <div class="flex items-center gap-3">
+      <span id="navDomain" class="text-xs text-slate-400 dark:text-slate-500 hidden"></span>
+      <!-- Theme toggle -->
+      <button onclick="toggleTheme()" class="p-2 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-white/5 transition cursor-pointer" aria-label="Chuyển đổi giao diện" title="Light / Dark mode">
+        <svg id="iconSun" class="w-5 h-5 hidden" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
+        <svg id="iconMoon" class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/></svg>
+      </button>
+    </div>
+  </div>
+</nav>
+
+<!-- ========== VIEW: HOME ========== -->
+<div data-view="home" class="active">
+  <div class="max-w-6xl mx-auto px-4 md:px-6 py-10 fade-in">
+    <h2 class="font-heading text-2xl font-bold text-slate-900 dark:text-white mb-2">Domains</h2>
+    <p class="text-slate-500 mb-8 text-sm">Thêm domain và quản lý rules phân loại trang</p>
+
+    <!-- Add domain -->
+    <div class="flex gap-3 mb-8 max-w-xl">
+      <input id="newDomainUrl" type="text" placeholder="example.com hoặc https://example.com" class="flex-1 px-4 py-2.5 rounded-lg bg-white dark:bg-d-surface-3 border border-slate-200 dark:border-white/10 text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 text-sm outline-none focus:border-brand focus:ring-2 focus:ring-brand/20 transition"/>
+      <input id="newDomainName" type="text" placeholder="Tên (tuỳ chọn)" class="w-40 px-4 py-2.5 rounded-lg bg-white dark:bg-d-surface-3 border border-slate-200 dark:border-white/10 text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 text-sm outline-none focus:border-brand focus:ring-2 focus:ring-brand/20 transition"/>
+      <button onclick="addDomain()" class="px-5 py-2.5 bg-brand hover:bg-brand-dark text-white text-sm font-semibold rounded-lg transition cursor-pointer shadow-sm hover:shadow">Thêm</button>
+    </div>
+
+    <!-- Domain list -->
+    <div id="domainList" class="grid gap-3"></div>
+    <div id="domainEmpty" class="text-center text-slate-400 py-16 hidden">Chưa có domain nào. Thêm domain phía trên để bắt đầu.</div>
+  </div>
+</div>
+
+<!-- ========== VIEW: DOMAIN DETAIL ========== -->
+<div data-view="domain">
+  <div class="max-w-6xl mx-auto px-4 md:px-6 py-10 fade-in">
+    <div class="flex items-center justify-between mb-8">
+      <div>
+        <h2 id="domainTitle" class="font-heading text-2xl font-bold text-slate-900 dark:text-white"></h2>
+        <p id="domainUrl" class="text-sm text-slate-500 mt-1"></p>
+      </div>
+      <div class="flex items-center gap-3 flex-wrap">
+        <div class="flex items-center gap-2">
+          <label class="text-xs text-slate-500">Phương thức:</label>
+          <select id="scanMethod" onchange="toggleDepthSelect()" class="px-2 py-2 rounded-lg bg-white dark:bg-d-surface-3 border border-slate-200 dark:border-white/10 text-sm text-slate-900 dark:text-white outline-none cursor-pointer">
+            <option value="auto" selected>Auto (tự phát hiện)</option>
+            <option value="sitemap">Sitemap</option>
+            <option value="bfs">BFS Crawl (theo link)</option>
+            <option value="headless">Headless (SPA/JS)</option>
+          </select>
+        </div>
+        <div id="depthGroup" class="flex items-center gap-2 hidden">
+          <label class="text-xs text-slate-500">Độ sâu:</label>
+          <select id="scanDepth" class="px-2 py-2 rounded-lg bg-white dark:bg-d-surface-3 border border-slate-200 dark:border-white/10 text-sm text-slate-900 dark:text-white outline-none cursor-pointer">
+            <option value="1">Cấp 1 (nhanh)</option>
+            <option value="2" selected>Cấp 2 (chi tiết)</option>
+            <option value="3">Cấp 3 (sâu nhất)</option>
+          </select>
+        </div>
+        <div class="flex items-center gap-2">
+          <label class="text-xs text-slate-500">Tối đa:</label>
+          <select id="scanMaxPages" class="px-2 py-2 rounded-lg bg-white dark:bg-d-surface-3 border border-slate-200 dark:border-white/10 text-sm text-slate-900 dark:text-white outline-none cursor-pointer">
+            <option value="50">50 trang</option>
+            <option value="100">100 trang</option>
+            <option value="200" selected>200 trang</option>
+            <option value="500">500 trang</option>
+            <option value="1000">1000 trang</option>
+            <option value="0">Không giới hạn</option>
+          </select>
+        </div>
+        <button onclick="runScan()" id="scanBtn" class="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-semibold rounded-lg transition cursor-pointer inline-flex items-center gap-2 shadow-sm hover:shadow">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+          Scan ngay
+        </button>
+      </div>
+    </div>
+
+    <!-- Scan progress -->
+    <div id="scanProgress" class="hidden mb-6 p-4 bg-blue-50 dark:bg-brand/10 rounded-lg border border-blue-100 dark:border-brand/20">
+      <div class="flex items-center gap-3">
+        <div class="spinner"></div>
+        <span class="text-sm text-slate-600 dark:text-slate-300">Đang scan... có thể mất vài phút tuỳ số lượng trang</span>
+      </div>
+    </div>
+
+    <!-- Tabs -->
+    <div class="flex gap-1 mb-6 border-b border-slate-200 dark:border-white/5">
+      <button onclick="switchTab('rules')" class="tab-btn px-4 py-2.5 text-sm font-medium transition cursor-pointer" data-tab="rules">Page Rules</button>
+      <button onclick="switchTab('history')" class="tab-btn px-4 py-2.5 text-sm font-medium transition cursor-pointer" data-tab="history">Lịch sử Scan</button>
+      <button onclick="switchTab('schedule')" class="tab-btn px-4 py-2.5 text-sm font-medium transition cursor-pointer" data-tab="schedule">Auto-Scan</button>
+    </div>
+
+    <!-- Tab: Rules -->
+    <div id="tab-rules" class="tab-content">
+      <div class="mb-6 p-4 bg-white dark:bg-d-surface-3 rounded-lg border border-slate-200 dark:border-white/5">
+        <div class="flex items-center justify-between mb-3">
+          <div>
+            <span class="text-sm font-medium text-slate-900 dark:text-white">Paths đã thu thập</span>
+            <span id="pathsSource" class="text-xs text-slate-400 ml-2"></span>
+          </div>
+          <button onclick="discoverPaths()" id="discoverBtn" class="text-xs px-3 py-1.5 bg-slate-100 dark:bg-d-surface-4 hover:bg-brand/10 dark:hover:bg-brand/20 text-slate-600 dark:text-slate-300 hover:text-brand rounded-md transition cursor-pointer">Tải lại</button>
+        </div>
+        <div id="pathsList" class="max-h-48 overflow-y-auto text-xs text-slate-500 dark:text-slate-400 space-y-1">
+          <span class="text-slate-400">Đang tải...</span>
+        </div>
+      </div>
+
+      <!-- Add rule form -->
+      <div class="mb-6 p-4 bg-white dark:bg-d-surface-3 rounded-lg border border-slate-200 dark:border-white/5">
+        <div class="text-sm font-medium text-slate-900 dark:text-white mb-3">Thêm rule mới</div>
+        <div class="flex gap-3 flex-wrap items-end">
+          <div>
+            <label class="text-xs text-slate-500 mb-1 block">Path pattern</label>
+            <input id="rulePath" type="text" placeholder="/news" class="px-3 py-2 rounded-lg bg-slate-50 dark:bg-d-surface-2 border border-slate-200 dark:border-white/10 text-slate-900 dark:text-white text-sm outline-none focus:border-brand w-44 transition"/>
+          </div>
+          <div>
+            <label class="text-xs text-slate-500 mb-1 block">Tên danh mục</label>
+            <input id="ruleName" type="text" placeholder="Tin tức" class="px-3 py-2 rounded-lg bg-slate-50 dark:bg-d-surface-2 border border-slate-200 dark:border-white/10 text-slate-900 dark:text-white text-sm outline-none focus:border-brand w-44 transition"/>
+          </div>
+          <div class="flex items-center gap-2 pb-0.5">
+            <input id="ruleParams" type="checkbox" onchange="toggleTitleSource()" class="accent-brand w-4 h-4 cursor-pointer"/>
+            <label for="ruleParams" class="text-xs text-slate-500 cursor-pointer">Tách path con</label>
+          </div>
+          <button onclick="addRule()" class="px-4 py-2 bg-brand hover:bg-brand-dark text-white text-sm rounded-lg transition cursor-pointer">Thêm rule</button>
+        </div>
+
+        <!-- Title source (shown when use_params is checked) -->
+        <div id="titleSourceGroup" class="mt-3 pt-3 border-t border-slate-100 dark:border-white/5 hidden">
+          <div class="flex items-center gap-3 flex-wrap">
+            <div>
+              <label class="text-xs text-slate-500 mb-1 block">Lấy tên trang từ</label>
+              <select id="titleSource" class="px-3 py-2 rounded-lg bg-slate-50 dark:bg-d-surface-2 border border-slate-200 dark:border-white/10 text-sm text-slate-900 dark:text-white outline-none cursor-pointer">
+                <option value="path">Path segment (mặc định)</option>
+                <option value="h1">&lt;h1&gt;</option>
+                <option value="title">&lt;title&gt;</option>
+                <option value="og:title">og:title</option>
+                <option value="ld+json">LD+JSON (name/headline)</option>
+              </select>
+            </div>
+            <button onclick="scanFieldsPreview()" id="scanFieldsBtn" class="px-3 py-2 bg-slate-100 dark:bg-d-surface-4 hover:bg-brand/10 dark:hover:bg-brand/20 text-slate-600 dark:text-slate-300 hover:text-brand text-xs rounded-md transition cursor-pointer">Scan Fields</button>
+          </div>
+          <!-- Scan fields preview -->
+          <div id="fieldsPreview" class="mt-2 hidden">
+            <div class="text-xs text-slate-400 mb-1">Kết quả từ sample page:</div>
+            <div id="fieldsResults" class="space-y-1 text-xs"></div>
+          </div>
+        </div>
+      </div>
+
+      <div id="rulesTable" class="space-y-2"></div>
+      <div id="rulesEmpty" class="text-center text-slate-400 py-8 text-sm hidden">Chưa có rule nào. Thêm rule để phân loại trang khi scan.</div>
+    </div>
+
+    <!-- Tab: History -->
+    <div id="tab-history" class="tab-content hidden">
+      <div id="historyList" class="space-y-3"></div>
+      <div id="historyEmpty" class="text-center text-slate-400 py-8 text-sm hidden">Chưa có lần scan nào.</div>
+    </div>
+
+    <!-- Tab: Schedule (Auto-Scan) -->
+    <div id="tab-schedule" class="tab-content hidden">
+      <div class="max-w-lg">
+        <div class="p-5 bg-white dark:bg-d-surface-3 rounded-xl border border-slate-200 dark:border-white/5">
+          <div class="text-sm font-medium text-slate-900 dark:text-white mb-4">Cấu hình Auto-Scan</div>
+
+          <!-- Mode selector -->
+          <div class="space-y-3 mb-5">
+            <label class="flex items-center gap-3 cursor-pointer">
+              <input type="radio" name="schedMode" value="off" checked onchange="toggleSchedFields()" class="accent-brand"/>
+              <span class="text-sm text-slate-700 dark:text-slate-300">Tắt (scan thủ công)</span>
+            </label>
+            <label class="flex items-center gap-3 cursor-pointer">
+              <input type="radio" name="schedMode" value="daily" onchange="toggleSchedFields()" class="accent-brand"/>
+              <span class="text-sm text-slate-700 dark:text-slate-300">Hàng ngày lúc:</span>
+              <input id="schedTime" type="time" value="02:00" class="px-2 py-1 rounded bg-slate-50 dark:bg-d-surface-2 border border-slate-200 dark:border-white/10 text-sm text-slate-900 dark:text-white outline-none disabled:opacity-40" disabled/>
+            </label>
+            <label class="flex items-center gap-3 cursor-pointer">
+              <input type="radio" name="schedMode" value="interval" onchange="toggleSchedFields()" class="accent-brand"/>
+              <span class="text-sm text-slate-700 dark:text-slate-300">Mỗi</span>
+              <select id="schedHours" class="px-2 py-1 rounded bg-slate-50 dark:bg-d-surface-2 border border-slate-200 dark:border-white/10 text-sm text-slate-900 dark:text-white outline-none cursor-pointer disabled:opacity-40" disabled>
+                <option value="1">1</option>
+                <option value="2">2</option>
+                <option value="4">4</option>
+                <option value="6" selected>6</option>
+                <option value="8">8</option>
+                <option value="12">12</option>
+                <option value="24">24</option>
+              </select>
+              <span class="text-sm text-slate-700 dark:text-slate-300">giờ</span>
+            </label>
+          </div>
+
+          <!-- Crawl settings -->
+          <div id="schedCrawlSettings" class="space-y-3 mb-5 pt-4 border-t border-slate-100 dark:border-white/5 hidden">
+            <div class="flex gap-4 flex-wrap">
+              <div>
+                <label class="text-xs text-slate-500 mb-1 block">Phương thức crawl</label>
+                <select id="schedCrawlMethod" class="px-3 py-2 rounded-lg bg-slate-50 dark:bg-d-surface-2 border border-slate-200 dark:border-white/10 text-sm text-slate-900 dark:text-white outline-none cursor-pointer">
+                  <option value="auto">Auto</option>
+                  <option value="sitemap">Sitemap</option>
+                  <option value="bfs">BFS Crawl</option>
+                  <option value="headless">Headless</option>
+                </select>
+              </div>
+              <div>
+                <label class="text-xs text-slate-500 mb-1 block">Tối đa trang</label>
+                <select id="schedMaxPages" class="px-3 py-2 rounded-lg bg-slate-50 dark:bg-d-surface-2 border border-slate-200 dark:border-white/10 text-sm text-slate-900 dark:text-white outline-none cursor-pointer">
+                  <option value="50">50</option>
+                  <option value="100">100</option>
+                  <option value="200" selected>200</option>
+                  <option value="500">500</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <div class="flex items-center gap-3">
+            <button onclick="saveSchedule()" id="schedSaveBtn" class="px-5 py-2.5 bg-brand hover:bg-brand-dark text-white text-sm font-semibold rounded-lg transition cursor-pointer">Lưu cấu hình</button>
+            <span id="schedStatus" class="text-xs text-slate-400"></span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ========== VIEW: SCAN RESULTS ========== -->
+<div data-view="results">
+  <div class="max-w-6xl mx-auto px-4 md:px-6 py-10 fade-in">
+    <h2 class="font-heading text-2xl font-bold text-slate-900 dark:text-white mb-2">Kết quả Scan</h2>
+    <p id="resultsMeta" class="text-sm text-slate-500 mb-6"></p>
+
+    <!-- Summary cards -->
+    <div id="resultsSummary" class="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6"></div>
+
+    <!-- Category tabs -->
+    <div id="catTabs" class="flex gap-1 mb-2 border-b border-slate-200 dark:border-white/5 flex-wrap"></div>
+    <div id="subCatTabs" class="flex gap-1 mb-4 flex-wrap"></div>
+
+    <!-- Filters -->
+    <div class="flex gap-3 mb-4 flex-wrap items-center">
+      <select id="filterFlag" onchange="currentPage=1; renderResults()" class="px-3 py-2 rounded-lg bg-white dark:bg-d-surface-3 border border-slate-200 dark:border-white/10 text-sm text-slate-900 dark:text-white outline-none cursor-pointer">
+        <option value="all">Tất cả</option>
+        <option value="flagged">Cần chú ý</option>
+        <option value="size">Dung lượng >1MB</option>
+        <option value="dimension">Kích thước >3000px</option>
+        <option value="error">Ảnh lỗi</option>
+      </select>
+    </div>
+
+    <!-- Results table -->
+    <div class="overflow-x-auto rounded-xl border border-slate-200 dark:border-white/5 bg-white dark:bg-d-surface-2">
+      <table class="w-full text-sm">
+        <thead class="bg-slate-50 dark:bg-d-surface-3 text-slate-500 dark:text-slate-400 text-xs uppercase">
+          <tr>
+            <th class="px-4 py-3 text-left">Preview</th>
+            <th class="px-4 py-3 text-left cursor-pointer hover:text-slate-700 dark:hover:text-white transition" onclick="sortResults('page_title')">Trang</th>
+            <th class="px-4 py-3 text-left cursor-pointer hover:text-slate-700 dark:hover:text-white transition" onclick="sortResults('size_kb')">Dung lượng</th>
+            <th class="px-4 py-3 text-left cursor-pointer hover:text-slate-700 dark:hover:text-white transition" onclick="sortResults('width')">Kích thước</th>
+            <th class="px-4 py-3 text-left">Format</th>
+            <th class="px-4 py-3 text-left">Trạng thái</th>
+            <th class="px-4 py-3 text-left">URL ảnh</th>
+          </tr>
+        </thead>
+        <tbody id="resultsBody" class="divide-y divide-slate-100 dark:divide-white/5"></tbody>
+      </table>
+    </div>
+    <div id="resultsEmpty" class="text-center text-slate-400 py-8 text-sm hidden">Không có kết quả</div>
+
+    <!-- Pagination -->
+    <div id="pagination" class="flex items-center justify-between mt-4 hidden">
+      <span id="pageInfo" class="text-xs text-slate-500"></span>
+      <div class="flex items-center gap-1">
+        <button onclick="goPage(1)" id="pgFirst" class="px-2.5 py-1.5 text-xs rounded-md bg-slate-100 dark:bg-d-surface-3 text-slate-500 dark:text-slate-400 hover:text-brand dark:hover:text-white transition cursor-pointer disabled:opacity-30 disabled:cursor-default">&laquo;</button>
+        <button onclick="goPage(currentPage-1)" id="pgPrev" class="px-2.5 py-1.5 text-xs rounded-md bg-slate-100 dark:bg-d-surface-3 text-slate-500 dark:text-slate-400 hover:text-brand dark:hover:text-white transition cursor-pointer disabled:opacity-30 disabled:cursor-default">&lsaquo;</button>
+        <div id="pgNumbers" class="flex gap-1"></div>
+        <button onclick="goPage(currentPage+1)" id="pgNext" class="px-2.5 py-1.5 text-xs rounded-md bg-slate-100 dark:bg-d-surface-3 text-slate-500 dark:text-slate-400 hover:text-brand dark:hover:text-white transition cursor-pointer disabled:opacity-30 disabled:cursor-default">&rsaquo;</button>
+        <button onclick="goPage(totalPages)" id="pgLast" class="px-2.5 py-1.5 text-xs rounded-md bg-slate-100 dark:bg-d-surface-3 text-slate-500 dark:text-slate-400 hover:text-brand dark:hover:text-white transition cursor-pointer disabled:opacity-30 disabled:cursor-default">&raquo;</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div id="toast" class="fixed bottom-6 right-6 text-sm px-5 py-3 rounded-xl shadow-xl transition-all translate-y-20 opacity-0 pointer-events-none z-50"></div>
+
+<script>
+// ========== THEME ==========
+function getTheme() { return localStorage.getItem('theme') || 'light'; }
+function applyTheme(t) {
+  document.documentElement.classList.toggle('dark', t === 'dark');
+  document.getElementById('iconSun').classList.toggle('hidden', t !== 'dark');
+  document.getElementById('iconMoon').classList.toggle('hidden', t === 'dark');
+}
+function toggleTheme() {
+  const t = getTheme() === 'dark' ? 'light' : 'dark';
+  localStorage.setItem('theme', t);
+  applyTheme(t);
+}
+applyTheme(getTheme());
+
+// ========== STATE ==========
+let currentDomainId = null;
+let currentDomain = null;
+let domainsCache = [];
+let scanResultsData = [];
+let sortKey = 'size_kb';
+let sortDir = -1;
+let currentPage = 1;
+let totalPages = 1;
+let filteredRows = [];
+const PAGE_SIZE = 50;
+
+// ========== NAV HELPERS ==========
+function updateNavBar(view) {
+  const backBtn = document.getElementById('navBack');
+  const pageTitle = document.getElementById('navPageTitle');
+  const pageTitleText = document.getElementById('navPageTitleText');
+
+  if (view === 'home') {
+    backBtn.classList.add('hidden');
+    pageTitle.classList.add('hidden');
+  } else if (view === 'domain') {
+    backBtn.classList.remove('hidden');
+    pageTitle.classList.remove('hidden');
+    pageTitleText.textContent = currentDomain?.name || currentDomain?.url || '';
+  } else if (view === 'results') {
+    backBtn.classList.remove('hidden');
+    pageTitle.classList.remove('hidden');
+    pageTitleText.textContent = 'Kết quả Scan';
+  }
+}
+
+function navGoBack() {
+  const el = document.querySelector('[data-view="results"].active');
+  if (el) { navigate('domain', currentDomainId); }
+  else { navigate('home'); }
+}
+
+// ========== ROUTER ==========
+function pushUrl(path) {
+  if (window.location.pathname !== path) history.pushState(null, '', path);
+}
+
+function getDomainSlug(domain) {
+  try { return encodeURIComponent(domain.name || new URL(domain.url).hostname); }
+  catch { return encodeURIComponent(domain.name || domain.url); }
+}
+
+function findDomainBySlug(slug) {
+  const decoded = decodeURIComponent(slug);
+  return domainsCache.find(d => {
+    const name = d.name || '';
+    try { var host = new URL(d.url).hostname; } catch { var host = d.url; }
+    return name === decoded || host === decoded || d.id === decoded;
+  });
+}
+
+async function routeFromUrl() {
+  const path = window.location.pathname.replace(/\/+$/, '') || '/';
+  const parts = path.split('/').filter(Boolean);
+
+  if (parts.length === 0) {
+    navigate('home');
+  } else if (parts.length >= 1) {
+    if (!domainsCache.length) {
+      try { domainsCache = await api('/api/domains'); } catch { navigate('home'); return; }
+    }
+    const domain = findDomainBySlug(parts[0]);
+    if (!domain) { navigate('home'); return; }
+
+    if (parts.length >= 3 && parts[1] === 'history') {
+      currentDomainId = domain.id;
+      currentDomain = domain;
+      navigate('results', parts[2], true);
+    } else if (parts.length === 2 && parts[1] === 'history') {
+      navigate('domain', domain.id, true);
+      setTimeout(() => switchTab('history'), 100);
+    } else {
+      navigate('domain', domain.id, true);
+    }
+  }
+}
+
+window.addEventListener('popstate', () => routeFromUrl());
+
+// ========== NAVIGATION ==========
+function navigate(view, param, skipPush) {
+  document.querySelectorAll('[data-view]').forEach(v => v.classList.remove('active'));
+  const el = document.querySelector(`[data-view="${view === 'domain' || view === 'results' ? view : 'home'}"]`);
+  if (el) { el.classList.add('active'); el.querySelector('.fade-in')?.classList.remove('fade-in'); void el.offsetWidth; el.querySelector('div')?.classList.add('fade-in'); }
+
+  if (view === 'home') {
+    if (!skipPush) pushUrl('/');
+    loadDomains();
+    document.getElementById('navDomain').classList.add('hidden');
+  } else if (view === 'domain' && param) {
+    currentDomainId = param;
+    loadDomainDetail(param, skipPush);
+  } else if (view === 'results' && param) {
+    loadResults(param, skipPush);
+  }
+  updateNavBar(view);
+}
+
+// ========== TABS ==========
+function switchTab(tab) {
+  const isDark = getTheme() === 'dark';
+  document.querySelectorAll('.tab-btn').forEach(b => {
+    const active = b.dataset.tab === tab;
+    b.classList.toggle('text-brand', active);
+    b.classList.toggle('dark:text-blue-400', active);
+    b.classList.toggle('border-b-2', active);
+    b.classList.toggle('border-brand', active);
+    b.classList.toggle('dark:border-blue-400', active);
+    b.classList.toggle('text-slate-500', !active);
+  });
+  document.querySelectorAll('.tab-content').forEach(c => c.classList.add('hidden'));
+  document.getElementById(`tab-${tab}`)?.classList.remove('hidden');
+
+  if (tab === 'history' && currentDomainId && currentDomain) {
+    pushUrl(`/${getDomainSlug(currentDomain)}/history`);
+    loadHistory();
+  } else if (tab === 'schedule' && currentDomainId) {
+    loadSchedule();
+  } else if (tab === 'rules' && currentDomain) {
+    pushUrl(`/${getDomainSlug(currentDomain)}`);
+  }
+}
+
+// ========== API HELPERS ==========
+async function api(url, opts = {}) {
+  try {
+    const res = await fetch(url, { headers: { 'Content-Type': 'application/json' }, ...opts });
+    const json = await res.json();
+    if (!res.ok) throw new Error(json.error || `HTTP ${res.status}`);
+    return json;
+  } catch (e) { toast(e.message, true); throw e; }
+}
+
+function toast(msg, isErr = false) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.className = `fixed bottom-6 right-6 text-sm px-5 py-3 rounded-xl shadow-xl z-50 transition-all border ${isErr ? 'bg-red-50 dark:bg-red-900/80 border-red-200 dark:border-red-500/30 text-red-700 dark:text-red-200' : 'bg-white dark:bg-d-surface-3 border-slate-200 dark:border-white/10 text-slate-900 dark:text-white'}`;
+  setTimeout(() => { el.className += ' translate-y-20 opacity-0 pointer-events-none'; }, 3000);
+}
+
+// ========== DOMAINS ==========
+async function loadDomains() {
+  try {
+    const domains = await api('/api/domains');
+    domainsCache = domains;
+    const list = document.getElementById('domainList');
+    const empty = document.getElementById('domainEmpty');
+    if (!domains.length) { list.innerHTML = ''; empty.classList.remove('hidden'); return; }
+    empty.classList.add('hidden');
+
+    list.innerHTML = domains.map(d => `
+      <div class="flex items-center justify-between p-4 bg-white dark:bg-d-surface-3 rounded-xl border border-slate-200 dark:border-white/5 hover:border-brand/30 dark:hover:border-brand/30 transition cursor-pointer group" onclick="navigate('domain','${d.id}')">
+        <div>
+          <div class="text-slate-900 dark:text-white font-medium group-hover:text-brand transition">${esc(d.name || d.url)}</div>
+          <div class="text-xs text-slate-400 mt-0.5">${esc(d.url)}</div>
+        </div>
+        <div class="flex items-center gap-3">
+          <span class="text-xs text-slate-400">${new Date(d.created_at).toLocaleDateString('vi-VN')}</span>
+          <button onclick="event.stopPropagation(); deleteDomain('${d.id}')" class="p-1.5 rounded-md hover:bg-red-50 dark:hover:bg-red-500/20 text-slate-400 hover:text-red-500 dark:hover:text-red-400 transition cursor-pointer" title="Xoá">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+          </button>
+        </div>
+      </div>
+    `).join('');
+  } catch (e) {}
+}
+
+async function addDomain() {
+  const url = document.getElementById('newDomainUrl').value.trim();
+  const name = document.getElementById('newDomainName').value.trim();
+  if (!url) return toast('Nhập URL domain', true);
+  try {
+    await api('/api/domains', { method: 'POST', body: JSON.stringify({ url, name }) });
+    document.getElementById('newDomainUrl').value = '';
+    document.getElementById('newDomainName').value = '';
+    toast('Domain đã thêm');
+    loadDomains();
+  } catch (e) {}
+}
+
+async function deleteDomain(id) {
+  if (!confirm('Xoá domain này và tất cả dữ liệu liên quan?')) return;
+  try { await api(`/api/domains/${id}`, { method: 'DELETE' }); toast('Đã xoá'); loadDomains(); } catch(e) {}
+}
+
+// ========== DOMAIN DETAIL ==========
+async function loadDomainDetail(domainId, skipPush) {
+  try {
+    if (!domainsCache.length) domainsCache = await api('/api/domains');
+    currentDomain = domainsCache.find(d => d.id === domainId);
+    if (!currentDomain) { navigate('home'); return; }
+
+    if (!skipPush) pushUrl(`/${getDomainSlug(currentDomain)}`);
+
+    document.getElementById('domainTitle').textContent = currentDomain.name || currentDomain.url;
+    document.getElementById('domainUrl').textContent = currentDomain.url;
+    document.getElementById('navDomain').textContent = currentDomain.url;
+    document.getElementById('navDomain').classList.remove('hidden');
+
+    switchTab('rules');
+    loadRules();
+    discoverPaths();
+  } catch(e) {}
+}
+
+// ========== RULES ==========
+async function loadRules() {
+  try {
+    const rules = await api(`/api/rules/${currentDomainId}`);
+    const table = document.getElementById('rulesTable');
+    const empty = document.getElementById('rulesEmpty');
+    if (!rules.length) { table.innerHTML = ''; empty.classList.remove('hidden'); return; }
+    empty.classList.add('hidden');
+
+    table.innerHTML = rules.map(r => `
+      <div class="flex items-center justify-between p-3 bg-slate-50 dark:bg-d-surface-2 rounded-lg border border-slate-100 dark:border-white/5">
+        <div class="flex items-center gap-3 flex-wrap">
+          <code class="text-xs bg-blue-50 dark:bg-brand/10 px-2 py-1 rounded text-brand">${esc(r.path_pattern)}</code>
+          <span class="text-sm text-slate-900 dark:text-white">${esc(r.category_name)}</span>
+          ${r.use_params ? '<span class="text-xs bg-amber-50 dark:bg-amber-500/20 text-amber-600 dark:text-amber-400 px-2 py-0.5 rounded-full">Tách path con</span>' : ''}
+          ${r.title_source && r.title_source !== 'path' ? `<span class="text-xs bg-violet-50 dark:bg-violet-500/20 text-violet-600 dark:text-violet-400 px-2 py-0.5 rounded-full">Title: ${esc(r.title_source)}</span>` : ''}
+        </div>
+        <button onclick="deleteRule('${r.id}')" class="p-1 rounded hover:bg-red-50 dark:hover:bg-red-500/20 text-slate-400 hover:text-red-500 dark:hover:text-red-400 transition cursor-pointer">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M6 18L18 6M6 6l12 12"/></svg>
+        </button>
+      </div>
+    `).join('');
+  } catch(e) {}
+}
+
+async function addRule() {
+  const path = document.getElementById('rulePath').value.trim();
+  const name = document.getElementById('ruleName').value.trim();
+  const useParams = document.getElementById('ruleParams').checked;
+  const titleSource = useParams ? document.getElementById('titleSource').value : 'path';
+  if (!path || !name) return toast('Nhập path và tên danh mục', true);
+  try {
+    await api('/api/rules', { method: 'POST', body: JSON.stringify({
+      domain_id: currentDomainId, path_pattern: path, category_name: name, use_params: useParams, title_source: titleSource
+    })});
+    document.getElementById('rulePath').value = '';
+    document.getElementById('ruleName').value = '';
+    document.getElementById('ruleParams').checked = false;
+    document.getElementById('titleSourceGroup').classList.add('hidden');
+    document.getElementById('fieldsPreview').classList.add('hidden');
+    toast('Rule đã thêm');
+    loadRules();
+  } catch(e) {}
+}
+
+async function deleteRule(id) {
+  try { await api(`/api/rules/${id}`, { method: 'DELETE' }); toast('Đã xoá rule'); loadRules(); } catch(e) {}
+}
+
+async function discoverPaths() {
+  const btn = document.getElementById('discoverBtn');
+  btn.disabled = true; btn.textContent = 'Đang tải...';
+  try {
+    const data = await api(`/api/scan/discover/${currentDomainId}`, { method: 'POST' });
+    const container = document.getElementById('pathsList');
+    const sourceEl = document.getElementById('pathsSource');
+
+    const sourceLabels = { database: '(từ lần scan trước)', sitemap: '(từ sitemap.xml)', crawl: '(quét trực tiếp)' };
+    sourceEl.textContent = sourceLabels[data.source] || `(${data.source})`;
+
+    if (!data.paths.length) {
+      container.innerHTML = '<span class="text-slate-400">Chưa có paths nào. Chạy scan trước để thu thập.</span>';
+      return;
+    }
+
+    container.innerHTML = data.paths.map(p => {
+      const segments = p.split('/').filter(Boolean);
+      const parent = '/' + (segments[0] || '');
+      const isChild = segments.length > 1;
+      return `
+        <div class="flex items-center justify-between py-1 px-2 rounded hover:bg-slate-50 dark:hover:bg-d-surface-4 group">
+          <code class="${isChild ? 'text-slate-400 dark:text-slate-500 pl-4' : 'text-slate-700 dark:text-slate-300 font-medium'}">${esc(p)}</code>
+          <button onclick="prefillRule('${esc(isChild ? parent : p)}')" class="text-xs text-brand opacity-0 group-hover:opacity-100 transition cursor-pointer">+ Rule</button>
+        </div>
+      `;
+    }).join('');
+  } catch(e) {} finally { btn.disabled = false; btn.textContent = 'Tải lại'; }
+}
+
+function prefillRule(path) {
+  document.getElementById('rulePath').value = path;
+  const name = path.replace(/^\//, '').split('/')[0].replace(/-/g, ' ');
+  document.getElementById('ruleName').value = name.charAt(0).toUpperCase() + name.slice(1);
+  document.getElementById('ruleName').focus();
+}
+
+// ========== SCAN ==========
+async function recategorize(sessionId) {
+  const btn = event.target;
+  btn.disabled = true; btn.textContent = 'Đang xử lý...';
+  try {
+    const data = await api(`/api/scan/recategorize/${sessionId}`, { method: 'POST' });
+    toast(`Đã phân loại lại ${data.updated} trang`);
+  } catch(e) {} finally { btn.disabled = false; btn.textContent = 'Phân loại lại'; }
+}
+
+async function reanalyze(sessionId, btn) {
+  btn.disabled = true; btn.textContent = 'Đang đo...';
+  try {
+    const data = await api(`/api/scan/reanalyze/${sessionId}`, { method: 'POST' });
+    toast(`Đã đo lại ${data.fixed}/${data.total_checked} ảnh`);
+  } catch(e) {} finally { btn.disabled = false; btn.textContent = 'Đo lại'; }
+}
+
+function toggleDepthSelect() {
+  const method = document.getElementById('scanMethod').value;
+  document.getElementById('depthGroup').classList.toggle('hidden', method !== 'bfs');
+}
+
+async function runScan() {
+  const btn = document.getElementById('scanBtn');
+  const progress = document.getElementById('scanProgress');
+  const crawlMethod = document.getElementById('scanMethod').value;
+  const depth = parseInt(document.getElementById('scanDepth').value) || 2;
+  const maxPages = parseInt(document.getElementById('scanMaxPages').value) || 200;
+  btn.disabled = true; progress.classList.remove('hidden');
+  try {
+    const data = await api(`/api/scan/run/${currentDomainId}`, {
+      method: 'POST',
+      body: JSON.stringify({ crawl_method: crawlMethod, max_depth: depth, max_pages: maxPages }),
+    });
+    toast(`Scan xong: ${data.pages_scanned} trang, ${data.total_images} ảnh, ${data.flagged_count} cần chú ý`);
+    switchTab('history');
+    loadHistory();
+  } catch(e) {} finally { btn.disabled = false; progress.classList.add('hidden'); }
+}
+
+// ========== HISTORY ==========
+async function loadHistory() {
+  try {
+    const sessions = await api(`/api/scan/history/${currentDomainId}`);
+    const list = document.getElementById('historyList');
+    const empty = document.getElementById('historyEmpty');
+    if (!sessions.length) { list.innerHTML = ''; empty.classList.remove('hidden'); return; }
+    empty.classList.add('hidden');
+
+    list.innerHTML = sessions.map(s => {
+      const date = new Date(s.scanned_at);
+      const statusColor = s.status === 'completed' ? 'text-emerald-600 dark:text-emerald-400' : s.status === 'running' ? 'text-amber-600 dark:text-amber-400' : 'text-red-600 dark:text-red-400';
+      const methodLabels = { auto: 'Auto', sitemap: 'Sitemap', bfs: 'BFS Crawl', headless: 'Headless' };
+      const methodLabel = methodLabels[s.crawl_method] || s.crawl_method || '—';
+      const maxPagesLabel = s.max_pages === 0 ? 'Không giới hạn' : s.max_pages ? `${s.max_pages} trang` : '—';
+      const pagesScanned = s.pages_scanned != null ? `${s.pages_scanned} trang` : '';
+      return `
+        <div class="flex items-center justify-between p-4 bg-white dark:bg-d-surface-3 rounded-xl border border-slate-200 dark:border-white/5 hover:border-brand/30 dark:hover:border-brand/30 transition">
+          <div class="${s.status === 'completed' ? 'cursor-pointer' : ''} flex-1" ${s.status === 'completed' ? `onclick="navigate('results','${s.id}')"` : ''}>
+            <div class="text-slate-900 dark:text-white text-sm font-medium">${date.toLocaleDateString('vi-VN')} ${date.toLocaleTimeString('vi-VN')}</div>
+            <div class="text-xs text-slate-400 mt-1">${s.total_images} ảnh &middot; ${s.flagged_count} cần chú ý${pagesScanned ? ` &middot; ${pagesScanned} đã quét` : ''}</div>
+            <div class="flex items-center gap-2 mt-1.5">
+              <span class="text-xs px-2 py-0.5 rounded bg-slate-100 dark:bg-d-surface-4 text-slate-500 dark:text-slate-400">${methodLabel}</span>
+              <span class="text-xs px-2 py-0.5 rounded bg-slate-100 dark:bg-d-surface-4 text-slate-500 dark:text-slate-400">${maxPagesLabel}</span>
+            </div>
+          </div>
+          <div class="flex items-center gap-2">
+            ${s.status === 'completed' ? `<button onclick="event.stopPropagation(); reanalyze('${s.id}', this)" class="text-xs px-3 py-1.5 bg-slate-100 dark:bg-d-surface-4 hover:bg-brand/10 dark:hover:bg-brand/20 text-slate-600 dark:text-slate-300 hover:text-brand rounded-md transition cursor-pointer" title="Đo lại ảnh thiếu kích thước">Đo lại</button>` : ''}
+            ${s.status === 'completed' ? `<button onclick="event.stopPropagation(); recategorize('${s.id}')" class="text-xs px-3 py-1.5 bg-slate-100 dark:bg-d-surface-4 hover:bg-brand/10 dark:hover:bg-brand/20 text-slate-600 dark:text-slate-300 hover:text-brand rounded-md transition cursor-pointer" title="Áp dụng rules hiện tại">Phân loại lại</button>` : ''}
+            <span class="text-xs font-medium ${statusColor}">${s.status === 'completed' ? 'Hoàn thành' : s.status === 'running' ? 'Đang chạy' : 'Lỗi'}</span>
+          </div>
+        </div>
+      `;
+    }).join('');
+  } catch(e) {}
+}
+
+// ========== SCAN RESULTS ==========
+let activeCat = 'all';
+let activeSubCat = 'all';
+
+async function loadResults(sessionId, skipPush) {
+  try {
+    scanResultsData = await api(`/api/scan/results/${sessionId}`);
+
+    if (!skipPush && currentDomain) {
+      pushUrl(`/${getDomainSlug(currentDomain)}/history/${sessionId}`);
+    }
+
+    document.getElementById('resultsMeta').textContent = `Tổng: ${scanResultsData.length} ảnh`;
+
+    const total = scanResultsData.length;
+    const flagSize = scanResultsData.filter(r => r.flag_size).length;
+    const flagDim = scanResultsData.filter(r => r.flag_dimension).length;
+    const flagAny = scanResultsData.filter(r => r.flag_size || r.flag_dimension).length;
+    const flagErr = scanResultsData.filter(r => r.error).length;
+
+    document.getElementById('resultsSummary').innerHTML = [
+      { n: total, l: 'Tổng ảnh', c: 'text-slate-900 dark:text-white' },
+      { n: flagSize, l: '> 1000 KB', c: 'text-amber-600 dark:text-amber-400' },
+      { n: flagDim, l: '> 3000px', c: 'text-amber-600 dark:text-amber-400' },
+      { n: flagAny, l: 'Cần chú ý', c: 'text-red-600 dark:text-red-400' },
+      { n: flagErr, l: 'Lỗi tải ảnh', c: 'text-rose-600 dark:text-rose-400' },
+    ].map(c => `
+      <div class="bg-white dark:bg-d-surface-3 rounded-xl p-5 border border-slate-200 dark:border-white/5 text-center">
+        <div class="text-2xl font-heading font-bold ${c.c}">${c.n}</div>
+        <div class="text-xs text-slate-500 mt-1">${c.l}</div>
+      </div>
+    `).join('');
+
+    activeCat = 'all';
+    activeSubCat = 'all';
+    buildCatTabs();
+    renderResults();
+    document.querySelector('[data-view="results"]').classList.add('active');
+    updateNavBar('results');
+  } catch(e) {}
+}
+
+function buildCatTabs() {
+  const cats = [...new Set(scanResultsData.map(r => r.category_name).filter(Boolean))];
+  const counts = { all: scanResultsData.length };
+  cats.forEach(c => { counts[c] = scanResultsData.filter(r => r.category_name === c).length; });
+
+  document.getElementById('catTabs').innerHTML = [
+    { key: 'all', label: 'Tất cả', count: counts.all },
+    ...cats.map(c => ({ key: c, label: c, count: counts[c] }))
+  ].map(t => `
+    <button onclick="selectCat('${esc(t.key)}')" class="cat-tab px-4 py-2.5 text-sm font-medium transition cursor-pointer whitespace-nowrap ${t.key === activeCat ? 'text-brand dark:text-blue-400 border-b-2 border-brand dark:border-blue-400' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}" data-cat="${esc(t.key)}">
+      ${esc(t.label)} <span class="text-xs opacity-60">${t.count}</span>
+    </button>
+  `).join('');
+  buildSubCatTabs();
+}
+
+function buildSubCatTabs() {
+  const container = document.getElementById('subCatTabs');
+  if (activeCat === 'all') { container.innerHTML = ''; return; }
+
+  const catRows = scanResultsData.filter(r => r.category_name === activeCat);
+
+  // Use page_title as sub label when available, fallback to sub_category
+  const subLabels = {};
+  catRows.forEach(r => {
+    const key = r.sub_category || null;
+    if (key && !subLabels[key]) {
+      subLabels[key] = r.page_title || key;
+    }
+  });
+
+  const subs = Object.keys(subLabels);
+  if (!subs.length) { container.innerHTML = ''; return; }
+
+  const allCount = catRows.length;
+  const subCounts = {};
+  subs.forEach(s => { subCounts[s] = catRows.filter(r => r.sub_category === s).length; });
+
+  container.innerHTML = [
+    { key: 'all', label: 'Tất cả', count: allCount },
+    ...subs.map(s => ({ key: s, label: subLabels[s], count: subCounts[s] }))
+  ].map(t => `
+    <button onclick="selectSubCat('${esc(t.key)}')" class="sub-tab px-3 py-1.5 text-xs font-medium rounded-md transition cursor-pointer ${t.key === activeSubCat ? 'bg-brand/10 text-brand' : 'bg-slate-100 dark:bg-d-surface-3 text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'}" data-sub="${esc(t.key)}" title="${esc(t.key)}">
+      ${esc(t.label)} <span class="opacity-60">${t.count}</span>
+    </button>
+  `).join('');
+}
+
+function selectCat(cat) {
+  activeCat = cat;
+  activeSubCat = 'all';
+  currentPage = 1;
+  document.querySelectorAll('.cat-tab').forEach(b => {
+    const isCur = b.dataset.cat === cat;
+    b.classList.toggle('text-brand', isCur);
+    b.classList.toggle('dark:text-blue-400', isCur);
+    b.classList.toggle('border-b-2', isCur);
+    b.classList.toggle('border-brand', isCur);
+    b.classList.toggle('dark:border-blue-400', isCur);
+    b.classList.toggle('text-slate-500', !isCur);
+  });
+  buildSubCatTabs();
+  renderResults();
+}
+
+function selectSubCat(sub) {
+  activeSubCat = sub;
+  currentPage = 1;
+  document.querySelectorAll('.sub-tab').forEach(b => {
+    const isCur = b.dataset.sub === sub;
+    b.classList.toggle('bg-brand/10', isCur);
+    b.classList.toggle('text-brand', isCur);
+    b.classList.toggle('bg-slate-100', !isCur);
+    b.classList.toggle('dark:bg-d-surface-3', !isCur);
+    b.classList.toggle('text-slate-500', !isCur);
+    b.classList.toggle('dark:text-slate-400', !isCur);
+  });
+  renderResults();
+}
+
+function sortResults(key) {
+  if (sortKey === key) sortDir *= -1;
+  else { sortKey = key; sortDir = -1; }
+  currentPage = 1;
+  renderResults();
+}
+
+function renderResults() {
+  const flag = document.getElementById('filterFlag').value;
+
+  filteredRows = scanResultsData.filter(r => {
+    if (activeCat !== 'all' && r.category_name !== activeCat) return false;
+    if (activeSubCat !== 'all' && r.sub_category !== activeSubCat) return false;
+    if (flag === 'flagged' && !r.flag_size && !r.flag_dimension) return false;
+    if (flag === 'size' && !r.flag_size) return false;
+    if (flag === 'dimension' && !r.flag_dimension) return false;
+    if (flag === 'error' && !r.error) return false;
+    return true;
+  });
+
+  filteredRows.sort((a, b) => {
+    const av = a[sortKey] ?? -1, bv = b[sortKey] ?? -1;
+    return av < bv ? sortDir : av > bv ? -sortDir : 0;
+  });
+
+  totalPages = Math.max(1, Math.ceil(filteredRows.length / PAGE_SIZE));
+  if (currentPage > totalPages) currentPage = 1;
+  renderPage();
+}
+
+function goPage(page) {
+  currentPage = Math.max(1, Math.min(page, totalPages));
+  renderPage();
+}
+
+function renderPage() {
+  const start = (currentPage - 1) * PAGE_SIZE;
+  const rows = filteredRows.slice(start, start + PAGE_SIZE);
+
+  const tbody = document.getElementById('resultsBody');
+  const empty = document.getElementById('resultsEmpty');
+  const pag = document.getElementById('pagination');
+
+  if (!filteredRows.length) {
+    tbody.innerHTML = '';
+    empty.classList.remove('hidden');
+    pag.classList.add('hidden');
+    return;
+  }
+  empty.classList.add('hidden');
+
+  tbody.innerHTML = rows.map(r => {
+    const sizeClass = r.flag_size ? 'text-amber-600 dark:text-amber-400 font-semibold' : 'text-slate-600 dark:text-slate-300';
+    const dimClass = r.flag_dimension ? 'text-amber-600 dark:text-amber-400 font-semibold' : 'text-slate-600 dark:text-slate-300';
+
+    let status = '';
+    if (r.error) status = '<span class="text-xs bg-red-50 dark:bg-red-500/20 text-red-600 dark:text-red-400 px-2 py-0.5 rounded-full">Lỗi</span>';
+    else if (r.flag_size || r.flag_dimension) {
+      const tags = [];
+      if (r.flag_size) tags.push('Nặng');
+      if (r.flag_dimension) tags.push('Quá lớn');
+      status = `<span class="text-xs bg-amber-50 dark:bg-amber-500/20 text-amber-600 dark:text-amber-400 px-2 py-0.5 rounded-full">${tags.join(' + ')}</span>`;
+    } else {
+      status = '<span class="text-xs bg-emerald-50 dark:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 px-2 py-0.5 rounded-full">OK</span>';
+    }
+
+    return `<tr class="hover:bg-slate-50 dark:hover:bg-d-surface-3/50 transition">
+      <td class="px-4 py-2.5">${r.error ? `<a href="${esc(r.image_url)}" target="_blank" rel="noopener" title="${esc(r.image_url)}"><div class="w-[52px] h-[38px] rounded bg-red-50 dark:bg-red-500/10 flex items-center justify-center text-red-400 text-xs cursor-pointer hover:bg-red-100 dark:hover:bg-red-500/20 transition">ERR</div></a>` : `<a href="${esc(r.image_url)}" target="_blank" rel="noopener"><img class="thumb hover:opacity-80 transition cursor-pointer" src="${esc(r.image_url)}" loading="lazy" onerror="this.style.display='none'" title="Nhấn để mở ảnh"/></a>`}</td>
+      <td class="px-4 py-2.5"><a href="${esc(r.page_url)}" target="_blank" rel="noopener" class="block max-w-[200px] hover:opacity-80 transition cursor-pointer" title="${esc(r.page_url)}">${r.page_title ? `<div class="text-xs text-slate-900 dark:text-white font-medium truncate">${esc(r.page_title)}</div>` : ''}<div class="text-xs text-brand truncate underline decoration-brand/30">${esc(getPath(r.page_url))}</div>${getQuery(r.page_url) ? `<div class="text-xs text-slate-400 truncate">${esc(getQuery(r.page_url))}</div>` : ''}</a></td>
+      <td class="px-4 py-2.5 ${sizeClass}">${r.size_kb != null ? r.size_kb.toLocaleString() + ' KB' : '-'}</td>
+      <td class="px-4 py-2.5 ${dimClass}">${r.width && r.height ? `${r.width} x ${r.height}` : '-'}</td>
+      <td class="px-4 py-2.5 text-slate-500">${esc(r.format || '-')}</td>
+      <td class="px-4 py-2.5">${status}${r.error ? `<div class="mt-1 text-xs text-red-400 truncate max-w-[200px]" title="${esc(r.error)}">${esc(r.error)}</div>` : ''}</td>
+      <td class="px-4 py-2.5"><div class="max-w-[250px] truncate text-xs text-slate-400" title="${esc(r.image_url)}"><a href="${esc(r.image_url)}" target="_blank" rel="noopener" class="hover:text-brand transition">${esc(r.image_url)}</a></div></td>
+    </tr>`;
+  }).join('');
+
+  // Update pagination UI
+  pag.classList.remove('hidden');
+  const end = Math.min(start + PAGE_SIZE, filteredRows.length);
+  document.getElementById('pageInfo').textContent = `${start + 1}-${end} / ${filteredRows.length}`;
+
+  document.getElementById('pgFirst').disabled = currentPage <= 1;
+  document.getElementById('pgPrev').disabled = currentPage <= 1;
+  document.getElementById('pgNext').disabled = currentPage >= totalPages;
+  document.getElementById('pgLast').disabled = currentPage >= totalPages;
+
+  const nums = document.getElementById('pgNumbers');
+  let pages = [];
+  if (totalPages <= 7) {
+    pages = Array.from({length: totalPages}, (_, i) => i + 1);
+  } else {
+    pages = [1];
+    let lo = Math.max(2, currentPage - 2);
+    let hi = Math.min(totalPages - 1, currentPage + 2);
+    if (lo > 2) pages.push('...');
+    for (let i = lo; i <= hi; i++) pages.push(i);
+    if (hi < totalPages - 1) pages.push('...');
+    pages.push(totalPages);
+  }
+  nums.innerHTML = pages.map(p =>
+    p === '...'
+      ? '<span class="px-2 py-1.5 text-xs text-slate-400">...</span>'
+      : `<button onclick="goPage(${p})" class="px-2.5 py-1.5 text-xs rounded-md transition cursor-pointer ${p === currentPage ? 'bg-brand text-white' : 'bg-slate-100 dark:bg-d-surface-3 text-slate-500 dark:text-slate-400 hover:text-brand dark:hover:text-white'}">${p}</button>`
+  ).join('');
+}
+
+// ========== RULES - TITLE SOURCE ==========
+function toggleTitleSource() {
+  const show = document.getElementById('ruleParams').checked;
+  document.getElementById('titleSourceGroup').classList.toggle('hidden', !show);
+}
+
+async function scanFieldsPreview() {
+  if (!currentDomain) return;
+  const path = document.getElementById('rulePath').value.trim() || '/';
+  const sampleUrl = currentDomain.url.replace(/\/$/, '') + path;
+  const btn = document.getElementById('scanFieldsBtn');
+  btn.disabled = true; btn.textContent = 'Đang scan...';
+  try {
+    const data = await api('/api/scan/fields', { method: 'POST', body: JSON.stringify({ url: sampleUrl }) });
+    const preview = document.getElementById('fieldsPreview');
+    const results = document.getElementById('fieldsResults');
+    preview.classList.remove('hidden');
+    if (!Object.keys(data.fields).length) {
+      results.innerHTML = '<span class="text-slate-400">Không tìm thấy field nào</span>';
+      return;
+    }
+    results.innerHTML = Object.entries(data.fields).map(([key, val]) => `
+      <div class="flex items-center gap-2 py-1 px-2 rounded hover:bg-slate-50 dark:hover:bg-d-surface-4 group">
+        <code class="text-brand min-w-[70px]">${esc(key)}</code>
+        <span class="text-slate-600 dark:text-slate-300 truncate flex-1">${esc(val)}</span>
+        <button onclick="document.getElementById('titleSource').value='${esc(key)}'" class="text-xs text-brand opacity-0 group-hover:opacity-100 transition cursor-pointer">Chọn</button>
+      </div>
+    `).join('');
+  } catch(e) {} finally { btn.disabled = false; btn.textContent = 'Scan Fields'; }
+}
+
+// ========== SCHEDULE ==========
+function toggleSchedFields() {
+  const mode = document.querySelector('input[name="schedMode"]:checked').value;
+  document.getElementById('schedTime').disabled = mode !== 'daily';
+  document.getElementById('schedHours').disabled = mode !== 'interval';
+  document.getElementById('schedCrawlSettings').classList.toggle('hidden', mode === 'off');
+}
+
+async function loadSchedule() {
+  if (!currentDomainId) return;
+  try {
+    const data = await api(`/api/domains/${currentDomainId}/schedule`);
+    const sched = data.schedule;
+    if (!sched) {
+      document.querySelector('input[name="schedMode"][value="off"]').checked = true;
+    } else if (sched.mode === 'daily') {
+      document.querySelector('input[name="schedMode"][value="daily"]').checked = true;
+      document.getElementById('schedTime').value = sched.time || '02:00';
+    } else if (sched.mode === 'interval') {
+      document.querySelector('input[name="schedMode"][value="interval"]').checked = true;
+      document.getElementById('schedHours').value = String(sched.hours || 6);
+    }
+    if (sched) {
+      if (sched.crawl_method) document.getElementById('schedCrawlMethod').value = sched.crawl_method;
+      if (sched.max_pages) document.getElementById('schedMaxPages').value = String(sched.max_pages);
+    }
+    toggleSchedFields();
+    document.getElementById('schedStatus').textContent = sched ? `Đang hoạt động: ${sched.mode === 'daily' ? `hàng ngày lúc ${sched.time}` : `mỗi ${sched.hours}h`}` : '';
+  } catch(e) {}
+}
+
+async function saveSchedule() {
+  const mode = document.querySelector('input[name="schedMode"]:checked').value;
+  const btn = document.getElementById('schedSaveBtn');
+  btn.disabled = true;
+
+  try {
+    if (mode === 'off') {
+      await api(`/api/domains/${currentDomainId}/schedule`, { method: 'DELETE' });
+      document.getElementById('schedStatus').textContent = 'Đã tắt auto-scan';
+    } else {
+      const body = {
+        mode,
+        crawl_method: document.getElementById('schedCrawlMethod').value,
+        max_pages: parseInt(document.getElementById('schedMaxPages').value),
+      };
+      if (mode === 'daily') body.time = document.getElementById('schedTime').value;
+      if (mode === 'interval') body.hours = parseInt(document.getElementById('schedHours').value);
+
+      await api(`/api/domains/${currentDomainId}/schedule`, { method: 'PUT', body: JSON.stringify(body) });
+      document.getElementById('schedStatus').textContent = mode === 'daily'
+        ? `Đã lưu: hàng ngày lúc ${body.time}`
+        : `Đã lưu: mỗi ${body.hours} giờ`;
+    }
+    toast('Cấu hình đã lưu');
+  } catch(e) {} finally { btn.disabled = false; }
+}
+
+// ========== UTILS ==========
+function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+function getPath(url) {
+  try { return new URL(url).pathname || '/'; } catch { return url || '/'; }
+}
+
+function getQuery(url) {
+  try { return new URL(url).search.replace('?',''); } catch { return ''; }
+}
+
+// Boot
+routeFromUrl();
+</script>
+</body>
+</html>

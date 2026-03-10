@@ -1,0 +1,209 @@
+"""API routes for scanning, scan history, and field discovery."""
+from flask import Blueprint, request, jsonify
+from services import supabase_client as db
+from services.scan_executor import execute_scan, _match_with_rule, _get_page_title
+from services.image_scanner import (
+    get_all_links, get_links_from_sitemap, match_category,
+)
+from services.page_title_extractor import scan_fields
+
+bp = Blueprint("scan", __name__, url_prefix="/api/scan")
+
+
+@bp.route("/discover/<domain_id>", methods=["POST"])
+def discover_paths(domain_id):
+    """Return paths from existing scan data first, crawl as fallback."""
+    from urllib.parse import urlparse
+
+    # Try to get paths from existing scan results
+    sessions = db.select("scan_sessions", {
+        "domain_id": f"eq.{domain_id}",
+        "status": "eq.completed",
+        "select": "id",
+        "order": "scanned_at.desc",
+        "limit": "1",
+    })
+
+    if sessions:
+        results = db.select_all("scan_results", {
+            "scan_session_id": f"eq.{sessions[0]['id']}",
+            "select": "page_url",
+        })
+        paths = sorted(set(
+            urlparse(r["page_url"]).path
+            for r in results
+            if urlparse(r["page_url"]).path != "/"
+        ))
+        if paths:
+            return jsonify({"paths": paths, "total": len(paths), "source": "database"})
+
+    # Fallback: crawl live website
+    domains = db.select("domains", {"id": f"eq.{domain_id}", "select": "url"})
+    if not domains:
+        return jsonify({"error": "Domain not found"}), 404
+
+    base_url = domains[0]["url"]
+
+    # Try sitemap first, fallback to BFS crawl
+    links, err = get_links_from_sitemap(base_url, max_pages=500)
+    source = "sitemap"
+    if err or not links:
+        links, err = get_all_links(base_url, max_depth=2, max_pages=200)
+        source = "crawl"
+    if err:
+        return jsonify({"error": f"Cannot access: {err}"}), 400
+
+    paths = sorted(set(urlparse(l).path for l in links if urlparse(l).path != "/"))
+    return jsonify({"paths": paths, "total": len(paths), "source": source})
+
+
+@bp.route("/fields", methods=["POST"])
+def scan_page_fields():
+    """Scan a single page URL and return available title fields.
+
+    Used when user creates a rule with use_params=True and wants to
+    choose which HTML field to use as page title (h1, title, og:title, etc).
+    """
+    data = request.get_json()
+    url = (data.get("url") or "").strip()
+    if not url:
+        return jsonify({"error": "URL is required"}), 400
+
+    fields, err = scan_fields(url)
+    if err:
+        return jsonify({"error": f"Cannot access page: {err}"}), 400
+
+    return jsonify({"fields": fields, "url": url})
+
+
+@bp.route("/run/<domain_id>", methods=["POST"])
+def run_scan(domain_id):
+    """Run a full scan for a domain. Delegates to scan_executor."""
+    from config import SCAN_LIMIT_PER_DAY
+
+    # Check domain exists
+    domains = db.select("domains", {"id": f"eq.{domain_id}", "select": "*"})
+    if not domains:
+        return jsonify({"error": "Domain not found"}), 404
+
+    # Check daily scan limit (0 = unlimited)
+    if SCAN_LIMIT_PER_DAY > 0:
+        from datetime import date
+        today = date.today().isoformat()
+        existing = db.select("scan_sessions", {
+            "domain_id": f"eq.{domain_id}",
+            "scanned_at": f"gte.{today}T00:00:00",
+            "select": "id",
+        })
+        if len(existing) >= SCAN_LIMIT_PER_DAY:
+            return jsonify({"error": f"Đã scan {len(existing)}/{SCAN_LIMIT_PER_DAY} lần hôm nay."}), 429
+
+    # Parse crawl settings from request
+    data = request.get_json(silent=True) or {}
+    crawl_method = data.get("crawl_method", "auto")
+    max_depth = min(int(data.get("max_depth", 2)), 3)
+    max_pages = int(data.get("max_pages", 200))
+
+    try:
+        result = execute_scan(domain_id, crawl_method, max_depth, max_pages)
+        return jsonify(result)
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 404
+    except RuntimeError as e:
+        return jsonify({"error": str(e)}), 400
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@bp.route("/history/<domain_id>", methods=["GET"])
+def scan_history(domain_id):
+    """Get scan history for a domain."""
+    rows = db.select("scan_sessions", {
+        "domain_id": f"eq.{domain_id}",
+        "select": "*",
+        "order": "scanned_at.desc",
+        "limit": "30",
+    })
+    return jsonify(rows)
+
+
+@bp.route("/results/<session_id>", methods=["GET"])
+def scan_results(session_id):
+    """Get all image results for a scan session."""
+    rows = db.select_all("scan_results", {
+        "scan_session_id": f"eq.{session_id}",
+        "select": "*",
+        "order": "size_kb.desc.nullslast",
+    })
+    return jsonify(rows)
+
+
+@bp.route("/recategorize/<session_id>", methods=["POST"])
+def recategorize(session_id):
+    """Re-apply current rules to existing scan results (with title extraction)."""
+    sessions = db.select("scan_sessions", {
+        "id": f"eq.{session_id}",
+        "select": "domain_id",
+    })
+    if not sessions:
+        return jsonify({"error": "Session not found"}), 404
+
+    domain_id = sessions[0]["domain_id"]
+    rules = db.select("page_rules", {
+        "domain_id": f"eq.{domain_id}",
+        "select": "*",
+    })
+
+    results = db.select_all("scan_results", {
+        "scan_session_id": f"eq.{session_id}",
+        "select": "page_url",
+    })
+    unique_pages = set(r["page_url"] for r in results)
+
+    updated = 0
+    title_cache = {}
+    for page_url in unique_pages:
+        cat, sub, matched_rule = _match_with_rule(page_url, rules)
+        page_title = _get_page_title(page_url, matched_rule, title_cache)
+
+        db.update("scan_results", {
+            "scan_session_id": f"eq.{session_id}",
+            "page_url": f"eq.{page_url}",
+        }, {
+            "category_name": cat,
+            "sub_category": sub,
+            "page_title": page_title,
+        })
+        updated += 1
+
+    return jsonify({"updated": updated, "pages": len(unique_pages)})
+
+
+@bp.route("/reanalyze/<session_id>", methods=["POST"])
+def reanalyze(session_id):
+    """Re-download and measure images that have missing dimensions."""
+    from services.image_scanner import analyze_single_image
+
+    results = db.select_all("scan_results", {
+        "scan_session_id": f"eq.{session_id}",
+        "width": "is.null",
+        "error": "is.null",
+        "select": "id,image_url",
+    })
+
+    if not results:
+        return jsonify({"fixed": 0, "message": "Không có ảnh nào cần đo lại"})
+
+    fixed = 0
+    for r in results:
+        info = analyze_single_image(r["image_url"])
+        if info["width"] and info["height"]:
+            db.update("scan_results", {"id": f"eq.{r['id']}"}, {
+                "width": info["width"],
+                "height": info["height"],
+                "format": info["format"],
+                "flag_dimension": info["flag_dimension"],
+            })
+            fixed += 1
+
+    return jsonify({"fixed": fixed, "total_checked": len(results)})
