@@ -1,35 +1,22 @@
 {
-  "version": 2,
-  "builds": [
-    {
-      "src": "api/index.py",
-      "use": "@vercel/python",
-      "config": {
-        "maxLambdaSize": "50mb",
-        "runtime": "python3.12"
-      }
-    },
-    {
-      "src": "api/cron.py",
-      "use": "@vercel/python",
-      "config": {
-        "maxLambdaSize": "50mb",
-        "runtime": "python3.12"
-      }
-    }
-  ],
   "rewrites": [
     { "source": "/api/cron", "destination": "/api/cron" },
     { "source": "/(.*)", "destination": "/api/index" }
   ],
-  "functions": {
-    "api/index.py": { "maxDuration": 60 },
-    "api/cron.py": { "maxDuration": 300 }
-  },
   "crons": [
     {
       "path": "/api/cron",
       "schedule": "0 2 * * *"
     }
-  ]
+  ],
+  "functions": {
+    "api/index.py": {
+      "runtime": "@vercel/python@4.7.0",
+      "maxDuration": 60
+    },
+    "api/cron.py": {
+      "runtime": "@vercel/python@4.7.0",
+      "maxDuration": 300
+    }
+  }
 }
