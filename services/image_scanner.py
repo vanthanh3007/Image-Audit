@@ -8,6 +8,10 @@ from urllib.parse import urljoin, urlparse
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from config import SIZE_THRESHOLD_KB, DIMENSION_THRESHOLD_PX
 
+# These are used as fallback defaults; scan_executor passes dynamic values from DB
+_DEFAULT_SIZE_KB = SIZE_THRESHOLD_KB
+_DEFAULT_DIM_PX = DIMENSION_THRESHOLD_PX
+
 # Enable AVIF support in Pillow
 try:
     import pillow_avif  # noqa: F401
@@ -494,7 +498,10 @@ def get_image_urls(page_url):
     return list(image_urls), None
 
 
-def analyze_single_image(img_url):
+def analyze_single_image(img_url, size_threshold_kb=None, dimension_threshold_px=None):
+    """Download and measure a single image. Thresholds can be passed dynamically."""
+    size_limit = size_threshold_kb if size_threshold_kb is not None else _DEFAULT_SIZE_KB
+    dim_limit = dimension_threshold_px if dimension_threshold_px is not None else _DEFAULT_DIM_PX
     """Download and measure a single image."""
     result = {
         "image_url": img_url,
@@ -525,11 +532,11 @@ def analyze_single_image(img_url):
             if w and h:
                 result["width"], result["height"] = w, h
 
-        result["flag_size"] = size_kb > SIZE_THRESHOLD_KB
+        result["flag_size"] = size_kb > size_limit
         if result["width"] and result["height"]:
             result["flag_dimension"] = (
-                result["width"] > DIMENSION_THRESHOLD_PX
-                or result["height"] > DIMENSION_THRESHOLD_PX
+                result["width"] > dim_limit
+                or result["height"] > dim_limit
             )
     except Exception as e:
         result["error"] = str(e)
@@ -537,10 +544,11 @@ def analyze_single_image(img_url):
     return result
 
 
-def scan_page(page_url, use_headless=False):
+def scan_page(page_url, use_headless=False, size_threshold_kb=None, dimension_threshold_px=None):
     """Scan a single page: find all images and analyze them.
 
     use_headless: True to use Playwright for SPA/JS-rendered pages.
+    size_threshold_kb / dimension_threshold_px: override thresholds from DB settings.
     """
     if use_headless:
         image_urls, err = get_image_urls_headless(page_url)
@@ -551,7 +559,10 @@ def scan_page(page_url, use_headless=False):
 
     results = []
     with ThreadPoolExecutor(max_workers=8) as executor:
-        futures = {executor.submit(analyze_single_image, u): u for u in image_urls}
+        futures = {
+            executor.submit(analyze_single_image, u, size_threshold_kb, dimension_threshold_px): u
+            for u in image_urls
+        }
         for future in as_completed(futures):
             r = future.result()
             r["page_url"] = page_url

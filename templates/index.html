@@ -68,6 +68,9 @@
         <svg id="iconMoon" class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/></svg>
       </button>
       <!-- Logout button (hidden when not logged in) -->
+      <button id="settingsBtn" onclick="navigate('settings')" class="hidden p-2 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-white/5 transition cursor-pointer" aria-label="Settings" title="Cài đặt scan">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+      </button>
       <button id="logoutBtn" onclick="doLogout()" class="hidden p-2 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 transition cursor-pointer" aria-label="Logout" title="Đăng xuất">
         <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>
       </button>
@@ -128,6 +131,90 @@
           </div>
           <button type="submit" id="setupBtn" class="w-full py-2.5 bg-brand hover:bg-brand-dark text-white font-semibold rounded-lg transition cursor-pointer shadow-sm hover:shadow">Tạo tài khoản</button>
         </form>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ========== VIEW: SETTINGS ========== -->
+<div data-view="settings">
+  <div class="max-w-2xl mx-auto px-4 md:px-6 py-10 fade-in">
+    <button onclick="navigate('home')" class="text-sm text-slate-500 hover:text-brand mb-4 inline-flex items-center gap-1 cursor-pointer">
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M15 19l-7-7 7-7"/></svg>
+      Quay lại
+    </button>
+    <h2 class="font-heading text-2xl font-bold text-slate-900 dark:text-white mb-2">Cài đặt Scan</h2>
+    <p class="text-slate-500 mb-8 text-sm">Tùy chỉnh ngưỡng cảnh báo khi scan ảnh</p>
+
+    <div id="settingsForm" class="space-y-6">
+      <!-- Size threshold -->
+      <div class="bg-white dark:bg-d-surface-3 rounded-xl border border-slate-200 dark:border-white/10 p-5">
+        <div class="flex items-start gap-4">
+          <div class="p-2.5 rounded-lg bg-amber-50 dark:bg-amber-500/10 mt-0.5">
+            <svg class="w-5 h-5 text-amber-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 7v10c0 2 1 3 3 3h10c2 0 3-1 3-3V7c0-2-1-3-3-3H7C5 4 4 5 4 7z"/><path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4m0 4h.01"/></svg>
+          </div>
+          <div class="flex-1">
+            <label class="block text-sm font-semibold text-slate-900 dark:text-white mb-1">Ngưỡng dung lượng (KB)</label>
+            <p class="text-xs text-slate-500 mb-3">Ảnh có dung lượng lớn hơn giá trị này sẽ được đánh dấu "Nặng"</p>
+            <div class="flex items-center gap-2">
+              <input id="cfg_size_threshold_kb" type="number" min="0" step="100" class="w-36 px-3 py-2 rounded-lg bg-slate-50 dark:bg-d-surface-4 border border-slate-200 dark:border-white/10 text-slate-900 dark:text-white text-sm outline-none focus:border-brand focus:ring-2 focus:ring-brand/20 transition"/>
+              <span class="text-sm text-slate-400">KB</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Dimension threshold -->
+      <div class="bg-white dark:bg-d-surface-3 rounded-xl border border-slate-200 dark:border-white/10 p-5">
+        <div class="flex items-start gap-4">
+          <div class="p-2.5 rounded-lg bg-blue-50 dark:bg-blue-500/10 mt-0.5">
+            <svg class="w-5 h-5 text-blue-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5v-4m0 4h-4m4 0l-5-5"/></svg>
+          </div>
+          <div class="flex-1">
+            <label class="block text-sm font-semibold text-slate-900 dark:text-white mb-1">Ngưỡng kích thước (px)</label>
+            <p class="text-xs text-slate-500 mb-3">Ảnh có width hoặc height lớn hơn giá trị này sẽ được đánh dấu "Quá lớn"</p>
+            <div class="flex items-center gap-2">
+              <input id="cfg_dimension_threshold_px" type="number" min="0" step="100" class="w-36 px-3 py-2 rounded-lg bg-slate-50 dark:bg-d-surface-4 border border-slate-200 dark:border-white/10 text-slate-900 dark:text-white text-sm outline-none focus:border-brand focus:ring-2 focus:ring-brand/20 transition"/>
+              <span class="text-sm text-slate-400">px</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Scan limit per day -->
+      <div class="bg-white dark:bg-d-surface-3 rounded-xl border border-slate-200 dark:border-white/10 p-5">
+        <div class="flex items-start gap-4">
+          <div class="p-2.5 rounded-lg bg-green-50 dark:bg-green-500/10 mt-0.5">
+            <svg class="w-5 h-5 text-green-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+          </div>
+          <div class="flex-1">
+            <label class="block text-sm font-semibold text-slate-900 dark:text-white mb-1">Giới hạn scan / ngày</label>
+            <p class="text-xs text-slate-500 mb-3">Số lần scan tối đa cho mỗi domain trong 1 ngày</p>
+            <input id="cfg_scan_limit_per_day" type="number" min="1" max="24" class="w-36 px-3 py-2 rounded-lg bg-slate-50 dark:bg-d-surface-4 border border-slate-200 dark:border-white/10 text-slate-900 dark:text-white text-sm outline-none focus:border-brand focus:ring-2 focus:ring-brand/20 transition"/>
+          </div>
+        </div>
+      </div>
+
+      <!-- Max pages per scan -->
+      <div class="bg-white dark:bg-d-surface-3 rounded-xl border border-slate-200 dark:border-white/10 p-5">
+        <div class="flex items-start gap-4">
+          <div class="p-2.5 rounded-lg bg-violet-50 dark:bg-violet-500/10 mt-0.5">
+            <svg class="w-5 h-5 text-violet-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/></svg>
+          </div>
+          <div class="flex-1">
+            <label class="block text-sm font-semibold text-slate-900 dark:text-white mb-1">Số trang tối đa / lần scan</label>
+            <p class="text-xs text-slate-500 mb-3">Giới hạn số trang crawl trong mỗi lần scan (0 = không giới hạn)</p>
+            <input id="cfg_max_pages_per_scan" type="number" min="0" step="10" class="w-36 px-3 py-2 rounded-lg bg-slate-50 dark:bg-d-surface-4 border border-slate-200 dark:border-white/10 text-slate-900 dark:text-white text-sm outline-none focus:border-brand focus:ring-2 focus:ring-brand/20 transition"/>
+          </div>
+        </div>
+      </div>
+
+      <!-- Save button -->
+      <div class="flex justify-end pt-2">
+        <button onclick="saveSettings()" id="saveSettingsBtn" class="px-6 py-2.5 bg-brand hover:bg-brand-dark text-white text-sm font-semibold rounded-lg transition cursor-pointer shadow-sm hover:shadow inline-flex items-center gap-2">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
+          Lưu cài đặt
+        </button>
       </div>
     </div>
   </div>
@@ -483,6 +570,8 @@ async function routeFromUrl() {
 
   if (parts.length === 0) {
     navigate('home');
+  } else if (parts.length === 1 && parts[0] === 'settings') {
+    navigate('settings', null, true);
   } else if (parts.length >= 1) {
     if (!domainsCache.length) {
       try { domainsCache = await api('/api/domains'); } catch { navigate('home'); return; }
@@ -508,12 +597,16 @@ window.addEventListener('popstate', () => routeFromUrl());
 // ========== NAVIGATION ==========
 function navigate(view, param, skipPush) {
   document.querySelectorAll('[data-view]').forEach(v => v.classList.remove('active'));
-  const el = document.querySelector(`[data-view="${view === 'domain' || view === 'results' ? view : 'home'}"]`);
+  const el = document.querySelector(`[data-view="${view === 'domain' || view === 'results' || view === 'settings' ? view : 'home'}"]`);
   if (el) { el.classList.add('active'); el.querySelector('.fade-in')?.classList.remove('fade-in'); void el.offsetWidth; el.querySelector('div')?.classList.add('fade-in'); }
 
   if (view === 'home') {
     if (!skipPush) pushUrl('/');
     loadDomains();
+    document.getElementById('navDomain').classList.add('hidden');
+  } else if (view === 'settings') {
+    if (!skipPush) pushUrl('/settings');
+    loadSettings();
     document.getElementById('navDomain').classList.add('hidden');
   } else if (view === 'domain' && param) {
     currentDomainId = param;
@@ -1124,6 +1217,37 @@ function getQuery(url) {
   try { return new URL(url).search.replace('?',''); } catch { return ''; }
 }
 
+// ========== SETTINGS ==========
+async function loadSettings() {
+  try {
+    const settings = await api('/api/settings');
+    settings.forEach(s => {
+      const el = document.getElementById(`cfg_${s.key}`);
+      if (el) el.value = s.value;
+    });
+  } catch(e) {}
+}
+
+async function saveSettings() {
+  const btn = document.getElementById('saveSettingsBtn');
+  btn.disabled = true;
+
+  const keys = ['size_threshold_kb', 'dimension_threshold_px', 'scan_limit_per_day', 'max_pages_per_scan'];
+  const updates = {};
+  for (const key of keys) {
+    const el = document.getElementById(`cfg_${key}`);
+    if (el) updates[key] = el.value;
+  }
+
+  try {
+    await api('/api/settings', {
+      method: 'PUT',
+      body: JSON.stringify({ settings: updates }),
+    });
+    toast('Cài đặt đã lưu');
+  } catch(e) {} finally { btn.disabled = false; }
+}
+
 // ========== AUTH ==========
 let isAuthenticated = false;
 
@@ -1160,6 +1284,7 @@ async function doLogin(e) {
     }
     isAuthenticated = true;
     document.getElementById('logoutBtn').classList.remove('hidden');
+    document.getElementById('settingsBtn').classList.remove('hidden');
     navigate('home');
   } catch (err) {
     errEl.textContent = 'Lỗi kết nối server';
@@ -1213,6 +1338,7 @@ async function doLogout() {
   try { await fetch('/api/auth/logout', { method: 'POST' }); } catch {}
   isAuthenticated = false;
   document.getElementById('logoutBtn').classList.add('hidden');
+  document.getElementById('settingsBtn').classList.add('hidden');
   showView('login');
 }
 
@@ -1227,6 +1353,7 @@ async function boot() {
   const authed = await checkAuth();
   if (authed) {
     document.getElementById('logoutBtn').classList.remove('hidden');
+    document.getElementById('settingsBtn').classList.remove('hidden');
     routeFromUrl();
   } else {
     // Check if admin exists

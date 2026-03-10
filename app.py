@@ -4,6 +4,7 @@ from flask import Flask, render_template, jsonify, request
 from routes.api_domains import bp as domains_bp
 from routes.api_rules import bp as rules_bp
 from routes.api_scan import bp as scan_bp
+from routes.api_settings import bp as settings_bp
 from routes.api_auth import bp as auth_bp, require_auth, get_current_token
 from services.auth_service import verify_token
 
@@ -15,6 +16,7 @@ app.register_blueprint(auth_bp)
 app.register_blueprint(domains_bp)
 app.register_blueprint(rules_bp)
 app.register_blueprint(scan_bp)
+app.register_blueprint(settings_bp)
 
 # Initialize background scheduler (skip on Vercel serverless and reloader)
 IS_VERCEL = os.environ.get("VERCEL")

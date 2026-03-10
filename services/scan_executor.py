@@ -25,6 +25,12 @@ def execute_scan(domain_id, crawl_method="auto", max_depth=2, max_pages=200):
     - API route /api/scan/run/<domain_id>  (manual)
     - Scheduler job run_scheduled_scan()   (auto)
     """
+    # Load dynamic scan config from DB settings
+    from routes.api_settings import get_scan_config
+    scan_config = get_scan_config()
+    size_threshold_kb = scan_config["size_threshold_kb"]
+    dimension_threshold_px = scan_config["dimension_threshold_px"]
+
     # Check domain exists
     domains = db.select("domains", {"id": f"eq.{domain_id}", "select": "*"})
     if not domains:
@@ -98,7 +104,12 @@ def execute_scan(domain_id, crawl_method="auto", max_depth=2, max_pages=200):
         title_cache = {}
 
         for page_url in all_links:
-            images, scan_err = scan_page(page_url, use_headless=use_headless)
+            images, scan_err = scan_page(
+                page_url,
+                use_headless=use_headless,
+                size_threshold_kb=size_threshold_kb,
+                dimension_threshold_px=dimension_threshold_px,
+            )
             if scan_err:
                 continue
 
