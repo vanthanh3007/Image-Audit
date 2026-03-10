@@ -409,7 +409,7 @@
               <span class="text-sm text-slate-700 dark:text-slate-300">Hàng ngày lúc:</span>
               <input id="schedTime" type="time" value="02:00" class="px-2 py-1 rounded bg-slate-50 dark:bg-d-surface-2 border border-slate-200 dark:border-white/10 text-sm text-slate-900 dark:text-white outline-none disabled:opacity-40" disabled/>
             </label>
-            <p class="text-xs text-slate-400 ml-7">Nên đặt giờ khác nhau cho mỗi domain để tránh quá tải server</p>
+            <p id="schedBufferHint" class="text-xs text-slate-400 ml-7">Khoảng cách tối thiểu giữa các auto-scan: <strong id="schedBufferValue">30</strong> phút. Nên đặt giờ khác nhau cho mỗi domain để tránh quá tải server.</p>
           </div>
 
           <!-- Crawl settings -->
@@ -1229,10 +1229,20 @@ function toggleSchedFields() {
 async function loadSchedule() {
   if (!currentDomainId) return;
   try {
-    const data = await api(`/api/domains/${currentDomainId}/schedule`);
-    const sched = data.schedule;
+    // Load schedule config and buffer setting in parallel
+    const [schedData, settingsData] = await Promise.all([
+      api(`/api/domains/${currentDomainId}/schedule`),
+      api('/api/settings').catch(() => []),
+    ]);
+
+    // Update buffer hint
+    const bufferSetting = settingsData.find?.(s => s.key === 'schedule_buffer_minutes');
+    const bufferVal = bufferSetting ? bufferSetting.value : '30';
+    const bufferEl = document.getElementById('schedBufferValue');
+    if (bufferEl) bufferEl.textContent = bufferVal;
+
+    const sched = schedData.schedule;
     if (!sched || sched.mode === 'interval') {
-      // Treat legacy interval as off
       document.querySelector('input[name="schedMode"][value="off"]').checked = true;
     } else if (sched.mode === 'daily') {
       document.querySelector('input[name="schedMode"][value="daily"]').checked = true;
