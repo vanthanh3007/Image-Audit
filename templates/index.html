@@ -296,6 +296,7 @@
       <button onclick="switchTab('rules')" class="tab-btn px-4 py-2.5 text-sm font-medium transition cursor-pointer" data-tab="rules">Page Rules</button>
       <button onclick="switchTab('history')" class="tab-btn px-4 py-2.5 text-sm font-medium transition cursor-pointer" data-tab="history">Lịch sử Scan</button>
       <button onclick="switchTab('schedule')" class="tab-btn px-4 py-2.5 text-sm font-medium transition cursor-pointer" data-tab="schedule">Auto-Scan</button>
+      <button onclick="switchTab('config')" class="tab-btn px-4 py-2.5 text-sm font-medium transition cursor-pointer" data-tab="config">Cấu hình</button>
     </div>
 
     <!-- Tab: Rules -->
@@ -426,6 +427,38 @@
             <button onclick="saveSchedule()" id="schedSaveBtn" class="px-5 py-2.5 bg-brand hover:bg-brand-dark text-white text-sm font-semibold rounded-lg transition cursor-pointer">Lưu cấu hình</button>
             <span id="schedStatus" class="text-xs text-slate-400"></span>
           </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tab: Config (per-domain thresholds) -->
+    <div id="tab-config" class="tab-content hidden">
+      <div class="max-w-lg">
+        <div class="p-5 bg-white dark:bg-d-surface-3 rounded-xl border border-slate-200 dark:border-white/5">
+          <div class="text-sm font-medium text-slate-900 dark:text-white mb-1">Ngưỡng scan cho domain này</div>
+          <p class="text-xs text-slate-500 mb-5">Ảnh vượt ngưỡng sẽ được đánh dấu cần chú ý</p>
+
+          <div class="space-y-4 mb-5">
+            <div>
+              <label class="text-xs text-slate-500 mb-1.5 block">Dung lượng tối đa (KB)</label>
+              <div class="flex items-center gap-2">
+                <input id="cfgSizeKb" type="number" min="0" step="100" class="w-36 px-3 py-2 rounded-lg bg-slate-50 dark:bg-d-surface-4 border border-slate-200 dark:border-white/10 text-slate-900 dark:text-white text-sm outline-none focus:border-brand focus:ring-2 focus:ring-brand/20 transition"/>
+                <span class="text-xs text-slate-400">KB (mặc định: 1000)</span>
+              </div>
+            </div>
+            <div>
+              <label class="text-xs text-slate-500 mb-1.5 block">Kích thước tối đa (px)</label>
+              <div class="flex items-center gap-2">
+                <input id="cfgDimPx" type="number" min="0" step="100" class="w-36 px-3 py-2 rounded-lg bg-slate-50 dark:bg-d-surface-4 border border-slate-200 dark:border-white/10 text-slate-900 dark:text-white text-sm outline-none focus:border-brand focus:ring-2 focus:ring-brand/20 transition"/>
+                <span class="text-xs text-slate-400">px (mặc định: 3000)</span>
+              </div>
+            </div>
+          </div>
+
+          <button onclick="saveDomainConfig()" id="cfgSaveBtn" class="px-5 py-2.5 bg-brand hover:bg-brand-dark text-white text-sm font-semibold rounded-lg transition cursor-pointer inline-flex items-center gap-2">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
+            Lưu cấu hình
+          </button>
         </div>
       </div>
     </div>
@@ -637,6 +670,8 @@ function switchTab(tab) {
     loadHistory();
   } else if (tab === 'schedule' && currentDomainId) {
     loadSchedule();
+  } else if (tab === 'config' && currentDomainId) {
+    loadDomainConfig();
   } else if (tab === 'rules' && currentDomain) {
     pushUrl(`/${getDomainSlug(currentDomain)}`);
   }
@@ -1245,6 +1280,32 @@ async function saveSettings() {
       body: JSON.stringify({ settings: updates }),
     });
     toast('Cài đặt đã lưu');
+  } catch(e) {} finally { btn.disabled = false; }
+}
+
+// ========== PER-DOMAIN CONFIG ==========
+async function loadDomainConfig() {
+  if (!currentDomainId) return;
+  try {
+    const cfg = await api(`/api/domains/${currentDomainId}/config`);
+    document.getElementById('cfgSizeKb').value = cfg.size_threshold_kb || 1000;
+    document.getElementById('cfgDimPx').value = cfg.dimension_threshold_px || 3000;
+  } catch(e) {}
+}
+
+async function saveDomainConfig() {
+  if (!currentDomainId) return;
+  const btn = document.getElementById('cfgSaveBtn');
+  btn.disabled = true;
+  try {
+    await api(`/api/domains/${currentDomainId}/config`, {
+      method: 'PUT',
+      body: JSON.stringify({
+        size_threshold_kb: parseFloat(document.getElementById('cfgSizeKb').value) || 1000,
+        dimension_threshold_px: parseFloat(document.getElementById('cfgDimPx').value) || 3000,
+      }),
+    });
+    toast('Cấu hình domain đã lưu');
   } catch(e) {} finally { btn.disabled = false; }
 }
 

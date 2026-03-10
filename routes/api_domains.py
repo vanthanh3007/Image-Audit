@@ -1,9 +1,19 @@
-"""API routes for domain management and schedule config."""
+"""API routes for domain management, schedule config, and per-domain scan settings."""
 import json
 from flask import Blueprint, request, jsonify
 from services import supabase_client as db
+from routes.api_settings import get_scan_config
 
 bp = Blueprint("domains", __name__, url_prefix="/api/domains")
+
+# Default thresholds for new domains (read from global settings table)
+def _get_default_thresholds():
+    """Get default thresholds from global settings for new domain creation."""
+    config = get_scan_config()
+    return {
+        "size_threshold_kb": config["size_threshold_kb"],
+        "dimension_threshold_px": config["dimension_threshold_px"],
+    }
 
 
 @bp.route("", methods=["GET"])
@@ -26,7 +36,13 @@ def create_domain():
         url = "https://" + url
 
     try:
-        rows = db.insert("domains", {"url": url, "name": name or url})
+        defaults = _get_default_thresholds()
+        rows = db.insert("domains", {
+            "url": url,
+            "name": name or url,
+            "size_threshold_kb": defaults["size_threshold_kb"],
+            "dimension_threshold_px": defaults["dimension_threshold_px"],
+        })
         return jsonify(rows[0]), 201
     except Exception as e:
         return jsonify({"error": str(e)}), 400
@@ -39,6 +55,46 @@ def delete_domain(domain_id):
     remove_job(domain_id)
     db.delete("domains", {"id": f"eq.{domain_id}"})
     return jsonify({"ok": True})
+
+
+# ─── Per-domain scan thresholds ───
+
+@bp.route("/<domain_id>/config", methods=["GET"])
+def get_domain_config(domain_id):
+    """Get scan thresholds for a specific domain."""
+    rows = db.select("domains", {
+        "id": f"eq.{domain_id}",
+        "select": "size_threshold_kb,dimension_threshold_px",
+    })
+    if not rows:
+        return jsonify({"error": "Domain not found"}), 404
+    return jsonify(rows[0])
+
+
+@bp.route("/<domain_id>/config", methods=["PUT"])
+def update_domain_config(domain_id):
+    """Update scan thresholds for a specific domain.
+
+    Body: { "size_threshold_kb": 500, "dimension_threshold_px": 2000 }
+    """
+    data = request.get_json()
+    updates = {}
+
+    for key in ("size_threshold_kb", "dimension_threshold_px"):
+        if key in data:
+            try:
+                val = float(data[key])
+                if val < 0:
+                    return jsonify({"error": f"'{key}' must be >= 0"}), 400
+                updates[key] = val
+            except (ValueError, TypeError):
+                return jsonify({"error": f"'{key}' must be a number"}), 400
+
+    if not updates:
+        return jsonify({"error": "No valid config fields provided"}), 400
+
+    db.update("domains", {"id": f"eq.{domain_id}"}, updates)
+    return jsonify({"ok": True, "updated": updates})
 
 
 # ─── Schedule CRUD ───

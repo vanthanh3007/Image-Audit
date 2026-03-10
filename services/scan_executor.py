@@ -25,18 +25,17 @@ def execute_scan(domain_id, crawl_method="auto", max_depth=2, max_pages=200):
     - API route /api/scan/run/<domain_id>  (manual)
     - Scheduler job run_scheduled_scan()   (auto)
     """
-    # Load dynamic scan config from DB settings
-    from routes.api_settings import get_scan_config
-    scan_config = get_scan_config()
-    size_threshold_kb = scan_config["size_threshold_kb"]
-    dimension_threshold_px = scan_config["dimension_threshold_px"]
-
     # Check domain exists
     domains = db.select("domains", {"id": f"eq.{domain_id}", "select": "*"})
     if not domains:
         raise ValueError("Domain not found")
 
-    base_url = domains[0]["url"]
+    domain_data = domains[0]
+    base_url = domain_data["url"]
+
+    # Per-domain scan thresholds (fallback to defaults)
+    size_threshold_kb = float(domain_data.get("size_threshold_kb") or 1000)
+    dimension_threshold_px = float(domain_data.get("dimension_threshold_px") or 3000)
 
     # Get page rules (with title_source for Feature A)
     rules = db.select("page_rules", {
