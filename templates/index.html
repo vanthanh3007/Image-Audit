@@ -67,9 +67,71 @@
         <svg id="iconSun" class="w-5 h-5 hidden" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
         <svg id="iconMoon" class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/></svg>
       </button>
+      <!-- Logout button (hidden when not logged in) -->
+      <button id="logoutBtn" onclick="doLogout()" class="hidden p-2 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 transition cursor-pointer" aria-label="Logout" title="Đăng xuất">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>
+      </button>
     </div>
   </div>
 </nav>
+
+<!-- ========== VIEW: LOGIN ========== -->
+<div data-view="login">
+  <div class="min-h-[calc(100vh-56px)] flex items-center justify-center px-4">
+    <div class="w-full max-w-sm fade-in">
+      <div class="bg-white dark:bg-d-surface-3 rounded-2xl border border-slate-200 dark:border-white/10 shadow-lg p-8">
+        <div class="text-center mb-8">
+          <svg class="w-10 h-10 text-brand mx-auto mb-3" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+          <h2 class="font-heading text-xl font-bold text-slate-900 dark:text-white">Image Audit</h2>
+          <p class="text-sm text-slate-500 mt-1">Đăng nhập để tiếp tục</p>
+        </div>
+        <div id="loginError" class="hidden mb-4 p-3 bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/20 rounded-lg text-sm text-red-600 dark:text-red-400"></div>
+        <form onsubmit="doLogin(event)">
+          <div class="mb-4">
+            <label for="loginUser" class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">Username</label>
+            <input id="loginUser" type="text" autocomplete="username" required class="w-full px-4 py-2.5 rounded-lg bg-surface-3 dark:bg-d-surface-4 border border-slate-200 dark:border-white/10 text-slate-900 dark:text-white text-sm outline-none focus:border-brand focus:ring-2 focus:ring-brand/20 transition"/>
+          </div>
+          <div class="mb-6">
+            <label for="loginPass" class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">Password</label>
+            <input id="loginPass" type="password" autocomplete="current-password" required class="w-full px-4 py-2.5 rounded-lg bg-surface-3 dark:bg-d-surface-4 border border-slate-200 dark:border-white/10 text-slate-900 dark:text-white text-sm outline-none focus:border-brand focus:ring-2 focus:ring-brand/20 transition"/>
+          </div>
+          <button type="submit" id="loginBtn" class="w-full py-2.5 bg-brand hover:bg-brand-dark text-white font-semibold rounded-lg transition cursor-pointer shadow-sm hover:shadow">Đăng nhập</button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ========== VIEW: SETUP (First admin) ========== -->
+<div data-view="setup">
+  <div class="min-h-[calc(100vh-56px)] flex items-center justify-center px-4">
+    <div class="w-full max-w-sm fade-in">
+      <div class="bg-white dark:bg-d-surface-3 rounded-2xl border border-slate-200 dark:border-white/10 shadow-lg p-8">
+        <div class="text-center mb-8">
+          <svg class="w-10 h-10 text-brand mx-auto mb-3" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+          <h2 class="font-heading text-xl font-bold text-slate-900 dark:text-white">Tạo Admin</h2>
+          <p class="text-sm text-slate-500 mt-1">Lần đầu sử dụng - tạo tài khoản quản trị</p>
+        </div>
+        <div id="setupError" class="hidden mb-4 p-3 bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/20 rounded-lg text-sm text-red-600 dark:text-red-400"></div>
+        <form onsubmit="doSetup(event)">
+          <div class="mb-4">
+            <label for="setupUser" class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">Username</label>
+            <input id="setupUser" type="text" autocomplete="username" required class="w-full px-4 py-2.5 rounded-lg bg-surface-3 dark:bg-d-surface-4 border border-slate-200 dark:border-white/10 text-slate-900 dark:text-white text-sm outline-none focus:border-brand focus:ring-2 focus:ring-brand/20 transition"/>
+          </div>
+          <div class="mb-4">
+            <label for="setupPass" class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">Password <span class="text-slate-400 font-normal">(min 6 ký tự)</span></label>
+            <input id="setupPass" type="password" autocomplete="new-password" required minlength="6" class="w-full px-4 py-2.5 rounded-lg bg-surface-3 dark:bg-d-surface-4 border border-slate-200 dark:border-white/10 text-slate-900 dark:text-white text-sm outline-none focus:border-brand focus:ring-2 focus:ring-brand/20 transition"/>
+          </div>
+          <div class="mb-6">
+            <label for="setupPassConfirm" class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">Xác nhận Password</label>
+            <input id="setupPassConfirm" type="password" autocomplete="new-password" required minlength="6" class="w-full px-4 py-2.5 rounded-lg bg-surface-3 dark:bg-d-surface-4 border border-slate-200 dark:border-white/10 text-slate-900 dark:text-white text-sm outline-none focus:border-brand focus:ring-2 focus:ring-brand/20 transition"/>
+          </div>
+          <button type="submit" id="setupBtn" class="w-full py-2.5 bg-brand hover:bg-brand-dark text-white font-semibold rounded-lg transition cursor-pointer shadow-sm hover:shadow">Tạo tài khoản</button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
 
 <!-- ========== VIEW: HOME ========== -->
 <div data-view="home" class="active">
@@ -1062,8 +1124,132 @@ function getQuery(url) {
   try { return new URL(url).search.replace('?',''); } catch { return ''; }
 }
 
+// ========== AUTH ==========
+let isAuthenticated = false;
+
+async function checkAuth() {
+  try {
+    const res = await fetch('/api/auth/check');
+    const data = await res.json();
+    isAuthenticated = data.authenticated;
+  } catch { isAuthenticated = false; }
+  return isAuthenticated;
+}
+
+async function doLogin(e) {
+  e.preventDefault();
+  const btn = document.getElementById('loginBtn');
+  const errEl = document.getElementById('loginError');
+  errEl.classList.add('hidden');
+  btn.disabled = true; btn.textContent = 'Đang đăng nhập...';
+
+  try {
+    const res = await fetch('/api/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        username: document.getElementById('loginUser').value.trim(),
+        password: document.getElementById('loginPass').value,
+      }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      errEl.textContent = data.error || 'Đăng nhập thất bại';
+      errEl.classList.remove('hidden');
+      return;
+    }
+    isAuthenticated = true;
+    document.getElementById('logoutBtn').classList.remove('hidden');
+    navigate('home');
+  } catch (err) {
+    errEl.textContent = 'Lỗi kết nối server';
+    errEl.classList.remove('hidden');
+  } finally {
+    btn.disabled = false; btn.textContent = 'Đăng nhập';
+  }
+}
+
+async function doSetup(e) {
+  e.preventDefault();
+  const btn = document.getElementById('setupBtn');
+  const errEl = document.getElementById('setupError');
+  errEl.classList.add('hidden');
+
+  const pw = document.getElementById('setupPass').value;
+  const pw2 = document.getElementById('setupPassConfirm').value;
+  if (pw !== pw2) {
+    errEl.textContent = 'Password xác nhận không khớp';
+    errEl.classList.remove('hidden');
+    return;
+  }
+
+  btn.disabled = true; btn.textContent = 'Đang tạo...';
+  try {
+    const res = await fetch('/api/auth/setup', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        username: document.getElementById('setupUser').value.trim(),
+        password: pw,
+      }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      errEl.textContent = data.error || 'Tạo thất bại';
+      errEl.classList.remove('hidden');
+      return;
+    }
+    toast('Admin đã tạo! Đăng nhập để tiếp tục.');
+    showView('login');
+  } catch (err) {
+    errEl.textContent = 'Lỗi kết nối server';
+    errEl.classList.remove('hidden');
+  } finally {
+    btn.disabled = false; btn.textContent = 'Tạo tài khoản';
+  }
+}
+
+async function doLogout() {
+  try { await fetch('/api/auth/logout', { method: 'POST' }); } catch {}
+  isAuthenticated = false;
+  document.getElementById('logoutBtn').classList.add('hidden');
+  showView('login');
+}
+
+function showView(name) {
+  document.querySelectorAll('[data-view]').forEach(v => v.classList.remove('active'));
+  const el = document.querySelector(`[data-view="${name}"]`);
+  if (el) el.classList.add('active');
+}
+
+// ========== AUTH-WRAPPED BOOT ==========
+async function boot() {
+  const authed = await checkAuth();
+  if (authed) {
+    document.getElementById('logoutBtn').classList.remove('hidden');
+    routeFromUrl();
+  } else {
+    // Check if admin exists
+    try {
+      const res = await fetch('/api/auth/setup', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) });
+      const data = await res.json();
+      if (res.status === 409) {
+        // Admin exists -> show login
+        showView('login');
+      } else if (res.status === 400) {
+        // Admin doesn't exist, setup returned validation error -> show setup form
+        showView('setup');
+      } else {
+        showView('login');
+      }
+    } catch {
+      showView('login');
+    }
+  }
+}
+
 // Boot
-routeFromUrl();
+boot();
 </script>
 </body>
 </html>

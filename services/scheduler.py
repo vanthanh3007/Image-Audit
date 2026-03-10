@@ -2,21 +2,36 @@
 
 Uses APScheduler to run scan jobs based on per-domain schedule config.
 Schedule config is stored in domains.scan_schedule (JSONB).
+Gracefully disabled on Vercel (no APScheduler installed).
 """
 import json
 import logging
-from apscheduler.schedulers.background import BackgroundScheduler
-from apscheduler.triggers.cron import CronTrigger
-from apscheduler.triggers.interval import IntervalTrigger
-from services import supabase_client as db
+import os
 
 logger = logging.getLogger(__name__)
 
-scheduler = BackgroundScheduler(daemon=True)
+# APScheduler not available on Vercel serverless - skip gracefully
+_HAS_APSCHEDULER = False
+scheduler = None
+
+if not os.environ.get("VERCEL"):
+    try:
+        from apscheduler.schedulers.background import BackgroundScheduler
+        from apscheduler.triggers.cron import CronTrigger
+        from apscheduler.triggers.interval import IntervalTrigger
+        scheduler = BackgroundScheduler(daemon=True)
+        _HAS_APSCHEDULER = True
+    except ImportError:
+        logger.info("APScheduler not installed, scheduler disabled")
+
+from services import supabase_client as db
 
 
 def init_scheduler():
     """Load all schedules from DB and start the scheduler. Call once at app startup."""
+    if not _HAS_APSCHEDULER:
+        logger.info("Scheduler not available, skipping init")
+        return
     load_all_schedules()
     scheduler.start()
     logger.info("Scheduler started")
@@ -55,6 +70,8 @@ def load_all_schedules():
 
 def add_or_update_job(domain):
     """Create or replace a scheduled job for a domain."""
+    if not _HAS_APSCHEDULER:
+        return
     job_id = f"scan_{domain['id']}"
     schedule = domain.get("scan_schedule")
 
@@ -92,6 +109,8 @@ def add_or_update_job(domain):
 
 def remove_job(domain_id):
     """Remove a scheduled job for a domain."""
+    if not _HAS_APSCHEDULER:
+        return
     job_id = f"scan_{domain_id}"
     try:
         scheduler.remove_job(job_id)
@@ -123,6 +142,8 @@ def _run_scheduled_scan(domain_id, schedule):
 
 def get_scheduled_jobs_info():
     """Return list of active scheduled jobs (for debugging/status)."""
+    if not _HAS_APSCHEDULER:
+        return []
     jobs = []
     for job in scheduler.get_jobs():
         jobs.append({
