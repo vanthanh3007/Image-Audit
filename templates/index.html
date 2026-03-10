@@ -503,6 +503,9 @@
         <option value="dimension">Kích thước >3000px</option>
         <option value="error">Ảnh lỗi</option>
       </select>
+      <select id="filterFormat" onchange="currentPage=1; renderResults()" class="px-3 py-2 rounded-lg bg-white dark:bg-d-surface-3 border border-slate-200 dark:border-white/10 text-sm text-slate-900 dark:text-white outline-none cursor-pointer">
+        <option value="all">Tất cả format</option>
+      </select>
     </div>
 
     <!-- Results table -->
@@ -995,6 +998,7 @@ async function loadResults(sessionId, skipPush) {
     activeCat = 'all';
     activeSubCat = 'all';
     buildCatTabs();
+    buildFormatFilter();
     renderResults();
     document.querySelector('[data-view="results"]').classList.add('active');
     updateNavBar('results');
@@ -1066,6 +1070,18 @@ function selectCat(cat) {
   renderResults();
 }
 
+function buildFormatFilter() {
+  const formats = [...new Set(
+    scanResultsData.map(r => (r.format || '').toUpperCase()).filter(Boolean)
+  )].sort();
+  const sel = document.getElementById('filterFormat');
+  sel.innerHTML = '<option value="all">Tất cả format</option>'
+    + formats.map(f => {
+      const count = scanResultsData.filter(r => (r.format || '').toUpperCase() === f).length;
+      return `<option value="${esc(f)}">${esc(f)} (${count})</option>`;
+    }).join('');
+}
+
 function selectSubCat(sub) {
   activeSubCat = sub;
   currentPage = 1;
@@ -1090,6 +1106,7 @@ function sortResults(key) {
 
 function renderResults() {
   const flag = document.getElementById('filterFlag').value;
+  const fmt = document.getElementById('filterFormat').value;
 
   filteredRows = scanResultsData.filter(r => {
     if (activeCat !== 'all' && r.category_name !== activeCat) return false;
@@ -1098,6 +1115,7 @@ function renderResults() {
     if (flag === 'size' && !r.flag_size) return false;
     if (flag === 'dimension' && !r.flag_dimension) return false;
     if (flag === 'error' && !r.error) return false;
+    if (fmt !== 'all' && (r.format || '').toUpperCase() !== fmt) return false;
     return true;
   });
 
