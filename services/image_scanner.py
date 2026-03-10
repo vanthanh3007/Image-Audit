@@ -237,7 +237,10 @@ def _is_spa(page_url):
 
 def _get_browser():
     """Launch a shared Playwright browser instance."""
-    from playwright.sync_api import sync_playwright
+    try:
+        from playwright.sync_api import sync_playwright
+    except ImportError:
+        raise RuntimeError("Playwright not installed. Use crawl method 'sitemap' or 'bfs' instead.")
     pw = sync_playwright().start()
     browser = pw.chromium.launch(headless=True)
     return pw, browser

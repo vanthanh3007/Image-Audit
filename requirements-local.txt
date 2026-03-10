@@ -1,0 +1,5 @@
+# Local development (includes heavy deps like playwright)
+-r requirements.txt
+playwright==1.58.0
+pillow-avif-plugin==1.4.6
+APScheduler==3.10.4

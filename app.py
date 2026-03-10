@@ -12,8 +12,9 @@ app.register_blueprint(domains_bp)
 app.register_blueprint(rules_bp)
 app.register_blueprint(scan_bp)
 
-# Initialize background scheduler (skip in reloader child process)
-if not app.debug or os.environ.get("WERKZEUG_RUN_MAIN") == "true":
+# Initialize background scheduler (skip on Vercel serverless and reloader)
+IS_VERCEL = os.environ.get("VERCEL")
+if not IS_VERCEL and (not app.debug or os.environ.get("WERKZEUG_RUN_MAIN") == "true"):
     try:
         from services.scheduler import init_scheduler
         init_scheduler()
