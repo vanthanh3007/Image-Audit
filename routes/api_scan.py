@@ -145,6 +145,21 @@ def scan_history(domain_id):
     return jsonify(rows)
 
 
+@bp.route("/history/<session_id>", methods=["DELETE"])
+def delete_scan_session(session_id):
+    """Delete a single scan session and its results."""
+    # scan_results has ON DELETE CASCADE, so deleting session removes results too
+    db.delete("scan_sessions", {"id": f"eq.{session_id}"})
+    return jsonify({"ok": True})
+
+
+@bp.route("/history/domain/<domain_id>", methods=["DELETE"])
+def delete_all_history(domain_id):
+    """Delete ALL scan history for a domain."""
+    db.delete("scan_sessions", {"domain_id": f"eq.{domain_id}"})
+    return jsonify({"ok": True})
+
+
 @bp.route("/results/<session_id>", methods=["GET"])
 def scan_results(session_id):
     """Get all image results for a scan session."""
