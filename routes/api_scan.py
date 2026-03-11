@@ -223,20 +223,43 @@ def scan_results(session_id):
 
 @bp.route("/results/<session_id>/summary", methods=["GET"])
 def scan_results_summary(session_id):
-    """Aggregated summary + filter options for a scan session (lightweight).
+    """Aggregated summary via SQL RPC (fast, single query).
 
     Query params (optional):
       category: filter rows by category_name before counting flags
       sub_category: filter rows by sub_category before counting flags
-    When category/sub_category is provided, flag counts are recalculated
-    for that subset, but categories list is always from the full dataset.
     """
+    filter_cat = request.args.get("category")
+    filter_sub = request.args.get("sub_category")
+
+    # Normalize 'all' to None (SQL function uses NULL = no filter)
+    if filter_cat == "all":
+        filter_cat = None
+    if filter_sub == "all":
+        filter_sub = None
+
+    try:
+        result = db.rpc("scan_results_summary", {
+            "p_session_id": session_id,
+            "p_category": filter_cat,
+            "p_sub_category": filter_sub,
+        })
+        # RPC returns the JSON directly
+        if isinstance(result, list) and len(result) == 1:
+            return jsonify(result[0])
+        return jsonify(result)
+    except Exception as e:
+        # Fallback to slow Python method if RPC not yet created
+        return _summary_fallback(session_id, filter_cat, filter_sub)
+
+
+def _summary_fallback(session_id, filter_cat=None, filter_sub=None):
+    """Fallback summary using select_all (slow, used if RPC not available)."""
     all_rows = db.select_all("scan_results", {
         "scan_session_id": f"eq.{session_id}",
         "select": "category_name,sub_category,page_title,flag_size,flag_dimension,format,error",
     })
 
-    # Categories & sub_categories are always computed from FULL dataset
     from collections import Counter
     cat_counts = Counter(r.get("category_name") or "Khác" for r in all_rows)
     categories = [{"value": k, "count": v} for k, v in cat_counts.most_common()]
@@ -257,13 +280,10 @@ def scan_results_summary(session_id):
     fmt_counts = Counter((r.get("format") or "").upper() for r in all_rows if r.get("format"))
     formats = [{"value": k, "count": v} for k, v in fmt_counts.most_common()]
 
-    # Apply category/sub_category filter for flag counts
-    filter_cat = request.args.get("category")
-    filter_sub = request.args.get("sub_category")
     filtered = all_rows
-    if filter_cat and filter_cat != "all":
+    if filter_cat:
         filtered = [r for r in filtered if (r.get("category_name") or "Khác") == filter_cat]
-    if filter_sub and filter_sub != "all":
+    if filter_sub:
         filtered = [r for r in filtered if r.get("sub_category") == filter_sub]
 
     total = len(filtered)

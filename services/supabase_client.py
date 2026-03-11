@@ -108,3 +108,11 @@ def delete(table, match_params):
     resp = http.delete(_url(table), params=match_params, headers=_headers())
     resp.raise_for_status()
     return resp.json()
+
+
+def rpc(fn_name, params=None):
+    """Call a Supabase RPC (stored procedure / SQL function)."""
+    url = f"{SUPABASE_URL}/rest/v1/rpc/{fn_name}"
+    resp = http.post(url, json=params or {}, headers=_headers())
+    resp.raise_for_status()
+    return resp.json()
