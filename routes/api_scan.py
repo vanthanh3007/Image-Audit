@@ -162,13 +162,127 @@ def delete_all_history(domain_id):
 
 @bp.route("/results/<session_id>", methods=["GET"])
 def scan_results(session_id):
-    """Get all image results for a scan session."""
-    rows = db.select_all("scan_results", {
+    """Get image results with server-side pagination and filtering.
+
+    Query params:
+      page (int): page number, default 1
+      page_size (int): rows per page, default 50
+      category (str): filter by category_name
+      sub_category (str): filter by sub_category
+      flag (str): 'size', 'dimension', 'flagged', 'error'
+      format (str): filter by image format
+      sort (str): column name, default 'size_kb'
+      dir (str): 'asc' or 'desc', default 'desc'
+    """
+    page = request.args.get("page", 1, type=int)
+    page_size = min(request.args.get("page_size", 50, type=int), 200)
+
+    category = request.args.get("category")
+    sub_category = request.args.get("sub_category")
+    flag = request.args.get("flag")
+    fmt = request.args.get("format")
+    sort_col = request.args.get("sort", "size_kb")
+    sort_dir = request.args.get("dir", "desc")
+
+    params = {
         "scan_session_id": f"eq.{session_id}",
         "select": "*",
-        "order": "size_kb.desc.nullslast",
+    }
+
+    if category and category != "all":
+        params["category_name"] = f"eq.{category}"
+    if sub_category and sub_category != "all":
+        params["sub_category"] = f"eq.{sub_category}"
+    if fmt and fmt != "all":
+        params["format"] = f"ilike.{fmt}"
+    if flag == "size":
+        params["flag_size"] = "eq.true"
+    elif flag == "dimension":
+        params["flag_dimension"] = "eq.true"
+    elif flag == "flagged":
+        params["or"] = "(flag_size.eq.true,flag_dimension.eq.true)"
+    elif flag == "error":
+        params["error"] = "not.is.null"
+
+    allowed_sorts = {"size_kb", "width", "filename", "page_url", "page_title", "format", "category_name"}
+    if sort_col not in allowed_sorts:
+        sort_col = "size_kb"
+    null_order = ".nullslast" if sort_dir == "desc" else ".nullsfirst"
+    params["order"] = f"{sort_col}.{sort_dir}{null_order}"
+
+    rows, total = db.select_page("scan_results", params, page=page, page_size=page_size)
+
+    return jsonify({
+        "rows": rows,
+        "total": total,
+        "page": page,
+        "page_size": page_size,
+        "total_pages": max(1, -(-total // page_size)),
     })
-    return jsonify(rows)
+
+
+@bp.route("/results/<session_id>/summary", methods=["GET"])
+def scan_results_summary(session_id):
+    """Aggregated summary + filter options for a scan session (lightweight).
+
+    Query params (optional):
+      category: filter rows by category_name before counting flags
+      sub_category: filter rows by sub_category before counting flags
+    When category/sub_category is provided, flag counts are recalculated
+    for that subset, but categories list is always from the full dataset.
+    """
+    all_rows = db.select_all("scan_results", {
+        "scan_session_id": f"eq.{session_id}",
+        "select": "category_name,sub_category,page_title,flag_size,flag_dimension,format,error",
+    })
+
+    # Categories & sub_categories are always computed from FULL dataset
+    from collections import Counter
+    cat_counts = Counter(r.get("category_name") or "Khác" for r in all_rows)
+    categories = [{"value": k, "count": v} for k, v in cat_counts.most_common()]
+
+    sub_cats = {}
+    for r in all_rows:
+        cat = r.get("category_name") or "Khác"
+        sub = r.get("sub_category")
+        if not sub:
+            continue
+        if cat not in sub_cats:
+            sub_cats[cat] = {}
+        if sub not in sub_cats[cat]:
+            sub_cats[cat][sub] = {"value": sub, "label": r.get("page_title") or sub, "count": 0}
+        sub_cats[cat][sub]["count"] += 1
+    sub_categories = {cat: sorted(subs.values(), key=lambda x: -x["count"]) for cat, subs in sub_cats.items()}
+
+    fmt_counts = Counter((r.get("format") or "").upper() for r in all_rows if r.get("format"))
+    formats = [{"value": k, "count": v} for k, v in fmt_counts.most_common()]
+
+    # Apply category/sub_category filter for flag counts
+    filter_cat = request.args.get("category")
+    filter_sub = request.args.get("sub_category")
+    filtered = all_rows
+    if filter_cat and filter_cat != "all":
+        filtered = [r for r in filtered if (r.get("category_name") or "Khác") == filter_cat]
+    if filter_sub and filter_sub != "all":
+        filtered = [r for r in filtered if r.get("sub_category") == filter_sub]
+
+    total = len(filtered)
+    flag_size = sum(1 for r in filtered if r.get("flag_size"))
+    flag_dim = sum(1 for r in filtered if r.get("flag_dimension"))
+    flag_any = sum(1 for r in filtered if r.get("flag_size") or r.get("flag_dimension"))
+    flag_err = sum(1 for r in filtered if r.get("error"))
+
+    return jsonify({
+        "total": total,
+        "total_all": len(all_rows),
+        "flag_size": flag_size,
+        "flag_dimension": flag_dim,
+        "flag_any": flag_any,
+        "flag_error": flag_err,
+        "categories": categories,
+        "sub_categories": sub_categories,
+        "formats": formats,
+    })
 
 
 @bp.route("/recategorize/<session_id>", methods=["POST"])

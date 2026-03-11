@@ -549,19 +549,30 @@
     <h2 class="font-heading text-2xl font-bold text-slate-900 dark:text-white mb-2">Kết quả Scan</h2>
     <p id="resultsMeta" class="text-sm text-slate-500 mb-6"></p>
 
-    <!-- Summary cards -->
-    <div id="resultsSummary" class="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6"></div>
-
     <!-- Category tabs -->
-    <div id="catTabs" class="flex gap-1 mb-2 border-b border-slate-200 dark:border-white/5 flex-wrap"></div>
-    <div id="subCatTabs" class="flex gap-1 mb-4 flex-wrap"></div>
+    <div id="catTabs" class="flex gap-1 mb-3 border-b border-slate-200 dark:border-white/5 flex-wrap"></div>
 
-    <!-- Filters -->
+    <!-- Filters row: subCategory + format -->
     <div class="flex gap-3 mb-4 flex-wrap items-center">
-      <select id="filterFormat" onchange="currentPage=1; renderResults()" class="px-3 py-2 rounded-lg bg-white dark:bg-d-surface-3 border border-slate-200 dark:border-white/10 text-sm text-slate-900 dark:text-white outline-none cursor-pointer">
+      <div id="subCatDropdownWrap" class="relative hidden">
+        <button onclick="toggleSubCatDropdown()" id="subCatToggle" class="flex items-center gap-2 px-3 py-2 rounded-lg bg-white dark:bg-d-surface-3 border border-slate-200 dark:border-white/10 text-sm text-slate-900 dark:text-white outline-none cursor-pointer hover:border-brand transition min-w-[180px]">
+          <span id="subCatLabel" class="truncate">Tất cả sub</span>
+          <svg class="w-4 h-4 shrink-0 text-slate-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M19 9l-7 7-7-7"/></svg>
+        </button>
+        <div id="subCatPanel" class="hidden absolute left-0 top-full mt-1 z-40 w-72 bg-white dark:bg-d-surface-3 border border-slate-200 dark:border-white/10 rounded-xl shadow-xl overflow-hidden">
+          <div class="p-2 border-b border-slate-100 dark:border-white/5">
+            <input id="subCatSearch" type="text" placeholder="Tìm..." oninput="filterSubCatList()" class="w-full px-3 py-1.5 rounded-md bg-slate-50 dark:bg-d-surface-4 border border-slate-200 dark:border-white/5 text-sm text-slate-900 dark:text-white placeholder:text-slate-400 outline-none focus:border-brand transition"/>
+          </div>
+          <div id="subCatList" class="max-h-60 overflow-y-auto py-1"></div>
+        </div>
+      </div>
+      <select id="filterFormat" onchange="applyServerFilter()" class="px-3 py-2 rounded-lg bg-white dark:bg-d-surface-3 border border-slate-200 dark:border-white/10 text-sm text-slate-900 dark:text-white outline-none cursor-pointer">
         <option value="all">Tất cả format</option>
       </select>
     </div>
+
+    <!-- Summary cards (below filters) -->
+    <div id="resultsSummary" class="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6"></div>
 
     <!-- Results table -->
     <div class="overflow-x-auto rounded-xl border border-slate-200 dark:border-white/5 bg-white dark:bg-d-surface-2">
@@ -1096,102 +1107,188 @@ async function deleteAllHistory() {
   } catch(e) {}
 }
 
-// ========== SCAN RESULTS ==========
+// ========== SCAN RESULTS (server-side pagination) ==========
 let activeCat = 'all';
 let activeSubCat = 'all';
 let activeFlag = 'all';
+let currentSessionId = null;
+let summaryData = null;      // cached summary from /summary
+let subCatOptions = [];       // current filtered sub-category list
+let subCatDropdownOpen = false;
 
 async function loadResults(sessionId, skipPush) {
   try {
-    scanResultsData = await api(`/api/scan/results/${sessionId}`);
+    currentSessionId = sessionId;
 
     if (!skipPush && currentDomain) {
       pushUrl(`/${getDomainSlug(currentDomain)}/history/${sessionId}`);
     }
 
-    document.getElementById('resultsMeta').textContent = `Tổng: ${scanResultsData.length} ảnh`;
+    // Load summary (categories, formats, counts) once
+    summaryData = await api(`/api/scan/results/${sessionId}/summary`);
 
-    const total = scanResultsData.length;
-    const flagSize = scanResultsData.filter(r => r.flag_size).length;
-    const flagDim = scanResultsData.filter(r => r.flag_dimension).length;
-    const flagAny = scanResultsData.filter(r => r.flag_size || r.flag_dimension).length;
-    const flagErr = scanResultsData.filter(r => r.error).length;
-
-    document.getElementById('resultsSummary').innerHTML = [
-      { n: total, l: 'Tổng ảnh', c: 'text-slate-900 dark:text-white', f: 'all' },
-      { n: flagSize, l: '> 1000 KB', c: 'text-amber-600 dark:text-amber-400', f: 'size' },
-      { n: flagDim, l: '> 3000px', c: 'text-amber-600 dark:text-amber-400', f: 'dimension' },
-      { n: flagAny, l: 'Cần chú ý', c: 'text-red-600 dark:text-red-400', f: 'flagged' },
-      { n: flagErr, l: 'Lỗi tải ảnh', c: 'text-rose-600 dark:text-rose-400', f: 'error' },
-    ].map(c => `
-      <div onclick="selectFlag('${c.f}')" data-flag="${c.f}" class="summary-card bg-white dark:bg-d-surface-3 rounded-xl p-5 border-2 text-center cursor-pointer transition hover:shadow-md ${activeFlag === c.f ? 'border-brand dark:border-blue-400 shadow-sm' : 'border-slate-200 dark:border-white/5'}">
-        <div class="text-2xl font-heading font-bold ${c.c}">${c.n}</div>
-        <div class="text-xs text-slate-500 mt-1">${c.l}</div>
-      </div>
-    `).join('');
-
+    // Reset filters
     activeCat = 'all';
     activeSubCat = 'all';
     activeFlag = 'all';
+    sortKey = 'size_kb';
+    sortDir = -1;
+    currentPage = 1;
+
+    // Build UI
+    renderSummaryCards();
     buildCatTabs();
     buildFormatFilter();
-    renderResults();
+    buildSubCatDropdown();
+
+    // Load first page of data
+    await fetchAndRenderPage();
+
     document.querySelector('[data-view="results"]').classList.add('active');
     updateNavBar('results');
-  } catch(e) {}
+  } catch(e) { console.error(e); }
+}
+
+function renderSummaryCards() {
+  const s = summaryData;
+  const isFiltered = activeCat !== 'all' || activeSubCat !== 'all';
+  const metaText = isFiltered
+    ? `${s.total} / ${s.total_all} ảnh (đang lọc)`
+    : `Tổng: ${s.total} ảnh`;
+  document.getElementById('resultsMeta').textContent = metaText;
+
+  document.getElementById('resultsSummary').innerHTML = [
+    { n: s.total, l: 'Tổng ảnh', c: 'text-slate-900 dark:text-white', f: 'all' },
+    { n: s.flag_size, l: '> 1000 KB', c: 'text-amber-600 dark:text-amber-400', f: 'size' },
+    { n: s.flag_dimension, l: '> 3000px', c: 'text-amber-600 dark:text-amber-400', f: 'dimension' },
+    { n: s.flag_any, l: 'Cần chú ý', c: 'text-red-600 dark:text-red-400', f: 'flagged' },
+    { n: s.flag_error, l: 'Lỗi tải ảnh', c: 'text-rose-600 dark:text-rose-400', f: 'error' },
+  ].map(c => `
+    <div onclick="selectFlag('${c.f}')" data-flag="${c.f}" class="summary-card bg-white dark:bg-d-surface-3 rounded-xl p-5 border-2 text-center cursor-pointer transition hover:shadow-md ${activeFlag === c.f ? 'border-brand dark:border-blue-400 shadow-sm' : 'border-slate-200 dark:border-white/5'}">
+      <div class="text-2xl font-heading font-bold ${c.c}">${c.n}</div>
+      <div class="text-xs text-slate-500 mt-1">${c.l}</div>
+    </div>
+  `).join('');
+}
+
+function buildFlagFilter() {
+  // No longer needed — flags are in summary cards
 }
 
 function buildCatTabs() {
-  const cats = [...new Set(scanResultsData.map(r => r.category_name).filter(Boolean))];
-  const counts = { all: scanResultsData.length };
-  cats.forEach(c => { counts[c] = scanResultsData.filter(r => r.category_name === c).length; });
-
+  const cats = summaryData.categories;
   document.getElementById('catTabs').innerHTML = [
-    { key: 'all', label: 'Tất cả', count: counts.all },
-    ...cats.map(c => ({ key: c, label: c, count: counts[c] }))
+    { key: 'all', label: 'Tất cả', count: summaryData.total },
+    ...cats.map(c => ({ key: c.value, label: c.value, count: c.count }))
   ].map(t => `
     <button onclick="selectCat('${esc(t.key)}')" class="cat-tab px-4 py-2.5 text-sm font-medium transition cursor-pointer whitespace-nowrap ${t.key === activeCat ? 'text-brand dark:text-blue-400 border-b-2 border-brand dark:border-blue-400' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}" data-cat="${esc(t.key)}">
       ${esc(t.label)} <span class="text-xs opacity-60">${t.count}</span>
     </button>
   `).join('');
-  buildSubCatTabs();
 }
 
-function buildSubCatTabs() {
-  const container = document.getElementById('subCatTabs');
-  if (activeCat === 'all') { container.innerHTML = ''; return; }
+function buildFormatFilter() {
+  const sel = document.getElementById('filterFormat');
+  sel.innerHTML = '<option value="all">Tất cả format</option>'
+    + summaryData.formats.map(f =>
+      `<option value="${esc(f.value)}">${esc(f.value)} (${f.count})</option>`
+    ).join('');
+}
 
-  const catRows = scanResultsData.filter(r => r.category_name === activeCat);
+// ========== SUB-CATEGORY DROPDOWN WITH SEARCH ==========
+function buildSubCatDropdown() {
+  const wrap = document.getElementById('subCatDropdownWrap');
+  if (activeCat === 'all' || !summaryData.sub_categories[activeCat]?.length) {
+    wrap.classList.add('hidden');
+    activeSubCat = 'all';
+    return;
+  }
+  wrap.classList.remove('hidden');
+  subCatOptions = summaryData.sub_categories[activeCat];
+  activeSubCat = 'all';
+  document.getElementById('subCatLabel').textContent = `Tất cả (${subCatOptions.reduce((s,o) => s+o.count, 0)})`;
+  document.getElementById('subCatSearch').value = '';
+  renderSubCatList('');
+}
 
-  // Use page_title as sub label when available, fallback to sub_category
-  const subLabels = {};
-  catRows.forEach(r => {
-    const key = r.sub_category || null;
-    if (key && !subLabels[key]) {
-      subLabels[key] = r.page_title || key;
-    }
+function toggleSubCatDropdown() {
+  subCatDropdownOpen = !subCatDropdownOpen;
+  document.getElementById('subCatPanel').classList.toggle('hidden', !subCatDropdownOpen);
+  if (subCatDropdownOpen) {
+    document.getElementById('subCatSearch').focus();
+  }
+}
+
+// Close dropdown on outside click
+document.addEventListener('click', e => {
+  const wrap = document.getElementById('subCatDropdownWrap');
+  if (subCatDropdownOpen && !wrap.contains(e.target)) {
+    subCatDropdownOpen = false;
+    document.getElementById('subCatPanel').classList.add('hidden');
+  }
+});
+
+function filterSubCatList() {
+  const q = document.getElementById('subCatSearch').value.toLowerCase();
+  renderSubCatList(q);
+}
+
+function renderSubCatList(query) {
+  const list = document.getElementById('subCatList');
+  const allCount = subCatOptions.reduce((s,o) => s+o.count, 0);
+  const filtered = query
+    ? subCatOptions.filter(o => o.label.toLowerCase().includes(query) || o.value.toLowerCase().includes(query))
+    : subCatOptions;
+
+  let html = '';
+  // "All" option
+  if (!query) {
+    html += `<button onclick="pickSubCat('all','Tất cả (${allCount})')" class="w-full text-left px-3 py-2 text-sm hover:bg-slate-50 dark:hover:bg-d-surface-4 transition cursor-pointer ${activeSubCat === 'all' ? 'text-brand font-medium bg-brand/5' : 'text-slate-700 dark:text-slate-300'}">
+      Tất cả <span class="text-xs text-slate-400 ml-1">${allCount}</span>
+    </button>`;
+  }
+
+  filtered.forEach(o => {
+    html += `<button onclick="pickSubCat('${esc(o.value)}','${esc(o.label)} (${o.count})')" class="w-full text-left px-3 py-2 text-sm hover:bg-slate-50 dark:hover:bg-d-surface-4 transition cursor-pointer truncate ${activeSubCat === o.value ? 'text-brand font-medium bg-brand/5' : 'text-slate-700 dark:text-slate-300'}" title="${esc(o.value)}">
+      ${esc(o.label)} <span class="text-xs text-slate-400 ml-1">${o.count}</span>
+    </button>`;
   });
 
-  const subs = Object.keys(subLabels);
-  if (!subs.length) { container.innerHTML = ''; return; }
+  if (!filtered.length && query) {
+    html = '<div class="px-3 py-4 text-sm text-slate-400 text-center">Không tìm thấy</div>';
+  }
 
-  const allCount = catRows.length;
-  const subCounts = {};
-  subs.forEach(s => { subCounts[s] = catRows.filter(r => r.sub_category === s).length; });
+  list.innerHTML = html;
+}
 
-  container.innerHTML = [
-    { key: 'all', label: 'Tất cả', count: allCount },
-    ...subs.map(s => ({ key: s, label: subLabels[s], count: subCounts[s] }))
-  ].map(t => `
-    <button onclick="selectSubCat('${esc(t.key)}')" class="sub-tab px-3 py-1.5 text-xs font-medium rounded-md transition cursor-pointer ${t.key === activeSubCat ? 'bg-brand/10 text-brand' : 'bg-slate-100 dark:bg-d-surface-3 text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'}" data-sub="${esc(t.key)}" title="${esc(t.key)}">
-      ${esc(t.label)} <span class="opacity-60">${t.count}</span>
-    </button>
-  `).join('');
+function pickSubCat(value, label) {
+  activeSubCat = value;
+  document.getElementById('subCatLabel').textContent = label;
+  subCatDropdownOpen = false;
+  document.getElementById('subCatPanel').classList.add('hidden');
+  refreshSummaryAndFilter();
+}
+
+// ========== SERVER-SIDE FILTER & PAGINATION ==========
+
+async function refreshSummaryAndFilter() {
+  // Re-fetch summary with current category/sub_category filter → recalculate totals
+  const params = new URLSearchParams();
+  if (activeCat !== 'all') params.set('category', activeCat);
+  if (activeSubCat !== 'all') params.set('sub_category', activeSubCat);
+  const qs = params.toString();
+  try {
+    summaryData = await api(`/api/scan/results/${currentSessionId}/summary${qs ? '?' + qs : ''}`);
+    renderSummaryCards();
+  } catch(e) { console.error(e); }
+  currentPage = 1;
+  fetchAndRenderPage();
 }
 
 function selectCat(cat) {
   activeCat = cat;
   activeSubCat = 'all';
+  activeFlag = 'all';
   currentPage = 1;
   document.querySelectorAll('.cat-tab').forEach(b => {
     const isCur = b.dataset.cat === cat;
@@ -1202,48 +1299,13 @@ function selectCat(cat) {
     b.classList.toggle('dark:border-blue-400', isCur);
     b.classList.toggle('text-slate-500', !isCur);
   });
-  buildSubCatTabs();
-  renderResults();
-}
-
-function buildFormatFilter() {
-  const formats = [...new Set(
-    scanResultsData.map(r => (r.format || '').toUpperCase()).filter(Boolean)
-  )].sort();
-  const sel = document.getElementById('filterFormat');
-  sel.innerHTML = '<option value="all">Tất cả format</option>'
-    + formats.map(f => {
-      const count = scanResultsData.filter(r => (r.format || '').toUpperCase() === f).length;
-      return `<option value="${esc(f)}">${esc(f)} (${count})</option>`;
-    }).join('');
-}
-
-function selectSubCat(sub) {
-  activeSubCat = sub;
-  currentPage = 1;
-  document.querySelectorAll('.sub-tab').forEach(b => {
-    const isCur = b.dataset.sub === sub;
-    b.classList.toggle('bg-brand/10', isCur);
-    b.classList.toggle('text-brand', isCur);
-    b.classList.toggle('bg-slate-100', !isCur);
-    b.classList.toggle('dark:bg-d-surface-3', !isCur);
-    b.classList.toggle('text-slate-500', !isCur);
-    b.classList.toggle('dark:text-slate-400', !isCur);
-  });
-  renderResults();
-}
-
-function sortResults(key) {
-  if (sortKey === key) sortDir *= -1;
-  else { sortKey = key; sortDir = -1; }
-  currentPage = 1;
-  renderResults();
+  buildSubCatDropdown();
+  refreshSummaryAndFilter();
 }
 
 function selectFlag(flag) {
   activeFlag = flag;
   currentPage = 1;
-  // Update card borders
   document.querySelectorAll('.summary-card').forEach(el => {
     const isCur = el.dataset.flag === flag;
     el.classList.toggle('border-brand', isCur);
@@ -1252,47 +1314,53 @@ function selectFlag(flag) {
     el.classList.toggle('border-slate-200', !isCur);
     el.classList.toggle('dark:border-white/5', !isCur);
   });
-  renderResults();
+  applyServerFilter();
 }
 
-function renderResults() {
-  const fmt = document.getElementById('filterFormat').value;
+function sortResults(key) {
+  if (sortKey === key) sortDir *= -1;
+  else { sortKey = key; sortDir = -1; }
+  currentPage = 1;
+  applyServerFilter();
+}
 
-  filteredRows = scanResultsData.filter(r => {
-    if (activeCat !== 'all' && r.category_name !== activeCat) return false;
-    if (activeSubCat !== 'all' && r.sub_category !== activeSubCat) return false;
-    if (activeFlag === 'flagged' && !r.flag_size && !r.flag_dimension) return false;
-    if (activeFlag === 'size' && !r.flag_size) return false;
-    if (activeFlag === 'dimension' && !r.flag_dimension) return false;
-    if (activeFlag === 'error' && !r.error) return false;
-    if (fmt !== 'all' && (r.format || '').toUpperCase() !== fmt) return false;
-    return true;
-  });
-
-  filteredRows.sort((a, b) => {
-    const av = a[sortKey] ?? -1, bv = b[sortKey] ?? -1;
-    return av < bv ? sortDir : av > bv ? -sortDir : 0;
-  });
-
-  totalPages = Math.max(1, Math.ceil(filteredRows.length / PAGE_SIZE));
-  if (currentPage > totalPages) currentPage = 1;
-  renderPage();
+function applyServerFilter() {
+  currentPage = 1;
+  fetchAndRenderPage();
 }
 
 function goPage(page) {
   currentPage = Math.max(1, Math.min(page, totalPages));
-  renderPage();
+  fetchAndRenderPage();
 }
 
-function renderPage() {
-  const start = (currentPage - 1) * PAGE_SIZE;
-  const rows = filteredRows.slice(start, start + PAGE_SIZE);
+async function fetchAndRenderPage() {
+  const params = new URLSearchParams({
+    page: currentPage,
+    page_size: PAGE_SIZE,
+    sort: sortKey,
+    dir: sortDir === -1 ? 'desc' : 'asc',
+  });
+  if (activeCat !== 'all') params.set('category', activeCat);
+  if (activeSubCat !== 'all') params.set('sub_category', activeSubCat);
+  if (activeFlag !== 'all') params.set('flag', activeFlag);
+  const fmt = document.getElementById('filterFormat').value;
+  if (fmt !== 'all') params.set('format', fmt);
 
+  try {
+    const data = await api(`/api/scan/results/${currentSessionId}?${params}`);
+    totalPages = data.total_pages;
+    currentPage = data.page;
+    renderPage(data.rows, data.total);
+  } catch(e) { console.error(e); }
+}
+
+function renderPage(rows, totalCount) {
   const tbody = document.getElementById('resultsBody');
   const empty = document.getElementById('resultsEmpty');
   const pag = document.getElementById('pagination');
 
-  if (!filteredRows.length) {
+  if (!rows || !rows.length) {
     tbody.innerHTML = '';
     empty.classList.remove('hidden');
     pag.classList.add('hidden');
@@ -1326,10 +1394,11 @@ function renderPage() {
     </tr>`;
   }).join('');
 
-  // Update pagination UI
+  // Pagination UI
+  const start = (currentPage - 1) * PAGE_SIZE;
+  const end = Math.min(start + rows.length, totalCount);
   pag.classList.remove('hidden');
-  const end = Math.min(start + PAGE_SIZE, filteredRows.length);
-  document.getElementById('pageInfo').textContent = `${start + 1}-${end} / ${filteredRows.length}`;
+  document.getElementById('pageInfo').textContent = `${start + 1}-${end} / ${totalCount}`;
 
   document.getElementById('pgFirst').disabled = currentPage <= 1;
   document.getElementById('pgPrev').disabled = currentPage <= 1;
