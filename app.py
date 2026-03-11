@@ -18,9 +18,29 @@ app.register_blueprint(rules_bp)
 app.register_blueprint(scan_bp)
 app.register_blueprint(settings_bp)
 
+# ─── Startup: cleanup stale "running"/"stopping" sessions ───
+def _cleanup_stale_sessions():
+    """Mark orphaned running/stopping sessions as failed on startup."""
+    from services import supabase_client as db
+    try:
+        for status in ("running", "stopping"):
+            stale = db.select("scan_sessions", {
+                "status": f"eq.{status}",
+                "select": "id,domain_id,total_images,pages_scanned",
+            })
+            for s in stale:
+                db.update("scan_sessions", {"id": f"eq.{s['id']}"}, {
+                    "status": "failed",
+                })
+                app.logger.info(f"Cleaned stale session {s['id']} ({status} → failed)")
+    except Exception as e:
+        app.logger.warning(f"Stale session cleanup failed: {e}")
+
+
 # Initialize background scheduler (skip on Vercel serverless and reloader)
 IS_VERCEL = os.environ.get("VERCEL")
 if not IS_VERCEL and (not app.debug or os.environ.get("WERKZEUG_RUN_MAIN") == "true"):
+    _cleanup_stale_sessions()
     try:
         from services.scheduler import init_scheduler
         init_scheduler()
