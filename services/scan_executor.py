@@ -52,7 +52,7 @@ def _save_batch(batch, session_id, total_images, total_flagged, pages_scanned):
         logger.error(f"Failed to save batch for session {session_id}: {e}")
 
 
-def execute_scan(domain_id, crawl_method="auto", max_depth=5, max_pages=200,
+def execute_scan(domain_id, crawl_method="auto", max_depth=3, max_pages=200,
                  scan_timeout=None):
     """Run a full scan for a domain. Returns dict with results or raises Exception.
 
